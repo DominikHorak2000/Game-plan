@@ -12,8 +12,9 @@ window.GAME_DATA = {
     {
       id: "viktor",
       name: "Viktor",
-      tagline: "Rifle · Broom · Milena",
+      tagline: "Rifle · Broom · Tractor · Milena",
       broom: true,            // has the broom ability
+      tractor: true,          // has the tractor ability
       milena: true,           // the wild Milena can appear
       hero: {
         name: "Viktor",
@@ -108,6 +109,17 @@ window.GAME_DATA = {
     aimSlowMo: 0.35           // game speed while you are aiming the broom
   },
 
+  // ---- Viktor's tractor ----
+  tractor: {
+    cooldown: 30,             // seconds to charge
+    duration: 10,             // seconds in the tractor
+    speed: 9,                 // metres / second
+    turnRate: 2.4,            // how fast it turns while you hold left/right
+    hitRadius: 1.6,           // metres: Ivetas this close get run over
+    startDepth: 6,
+    minDepth: 5, maxDepth: 34, maxX: 9  // field boundaries (Ivetas wait at minDepth while you drive)
+  },
+
   // ---- Petr's Boss mode: infinite ammo + nukes ----
   nuke: {
     cooldown: 18,             // seconds to charge
@@ -194,6 +206,9 @@ window.GAME_DATA = {
     milenaAppears: "A wild Milena\nhas appeared!",
     milenaJoins: "Milena joined\nyour side!",
     powerOn: "Burget\nspecial spell!",
+    tractorOn: "TRAKTOR TIME!",
+    tractorOff: "Ivetas retreat!",
+    tractorHint: "Hold left / right to steer",
     broomAim: "Hold & drag to aim – release to sweep!"
   }
 };

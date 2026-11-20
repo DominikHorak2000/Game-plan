@@ -54,3 +54,12 @@ button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 #8f1a0f; }
 #menu { cursor: pointer; gap: 28px; }
 #menu h1 { font-size: clamp(44px, 14vw, 84px); line-height: 1; }
 #select { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top) + 32px); }
+
+#tractorBtn { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 128px); width: 78px; height: 78px; border-radius: 50%;
+  padding: 0; background: conic-gradient(#f7d417 var(--p, 0deg), #0009 0); border: 3px solid #fff6; display: flex; align-items: center; justify-content: center; }
+#tractorBtn::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: #222c; }
+#tractorBtn .ico { position: relative; font-size: 34px; filter: grayscale(1) opacity(.6); }
+#tractorBtn #tractorTime { position: absolute; bottom: -22px; left: 0; right: 0; font: 700 14px system-ui, sans-serif; color: #fff; text-shadow: 0 1px 3px #000; }
+#tractorBtn.ready { border-color: #fff; animation: pulse 1s infinite; }
+#tractorBtn.ready .ico { filter: none; }
+#tractorBtn.aiming { background: #e8321e; animation: none; }

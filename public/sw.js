@@ -1,5 +1,5 @@
 // Service worker: caches the game so it works offline once installed.
-const CACHE = "viktor-v7";
+const CACHE = "viktor-v8";
 const ASSETS = ["./", "index.html", "style.css", "data.js", "game.js", "viktor.jpg", "manifest.json", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {

@@ -103,6 +103,8 @@
     shot: () => noise(0.18, 2200, 0.5),
     empty: () => tone(900, 700, 0.05, 0.08),
     reload: () => { tone(300, 200, 0.08, 0.1); setTimeout(() => tone(500, 400, 0.08, 0.1), 2700); },
+    sweep: () => { noise(0.9, 900, 0.5); tone(200, 80, 0.6, 0.12, "triangle"); },
+    ready: () => { tone(600, 900, 0.12, 0.1, "triangle"); setTimeout(() => tone(900, 1300, 0.15, 0.1, "triangle"), 120); },
     hit: () => tone(500, 120, 0.15, 0.08, "triangle"),
     death: () => { tone(300, 40, 1.2, 0.2, "sawtooth"); noise(0.6, 400, 0.4); }
   };
@@ -115,7 +117,8 @@
     enemies: [], particles: [], tracers: [],
     spawnTimer: 0, spawnInterval: D.spawn.startInterval,
     aim: { x: 0, y: 0 }, recoil: 0, flash: 0,
-    deathT: 0, shake: 0
+    deathT: 0, shake: 0,
+    broomCharge: 0, broomAiming: false, broomAim: null, sweep: null
   };
 
   function reset() {
@@ -124,11 +127,12 @@
       ammo: D.weapon.magazine, reloading: 0, cooldown: 0,
       enemies: [], particles: [], tracers: [],
       spawnTimer: 0.5, spawnInterval: D.spawn.startInterval,
-      recoil: 0, flash: 0, deathT: 0, shake: 0
+      recoil: 0, flash: 0, deathT: 0, shake: 0,
+      broomCharge: 0, broomAiming: false, broomAim: null, sweep: null
     });
     S.aim = { x: CX, y: HORIZON };
-    $("hud").classList.remove("hidden");
-    updateHud();
+    $("hud").classList.remove("hidden"); $("broom").classList.remove("hidden");
+    updateHud(); updateBroomBtn();
   }
 
   function spawnHorde() {
@@ -219,6 +223,103 @@
     S.reloading = D.weapon.reloadTime; sfx.reload(); updateHud();
   }
 
+  // ---------- Broom ability ----------
+  // screen point -> ground position in world (x, depth)
+  function screenToGround(px, py) {
+    const maxD = D.broom.length;
+    const d = py > HORIZON + 1 ? Math.min(maxD, (F * D.world.cameraHeight) / (py - HORIZON)) : maxD;
+    return { x: ((px - CX) * d) / F, d };
+  }
+  // lane from Viktor towards the aimed ground point
+  function broomLane(px, py) {
+    const o = { x: 0, d: D.broom.startDepth }, t = screenToGround(px, py);
+    let dx = t.x - o.x, dd = t.d - o.d;
+    if (dd < 0.5) dd = 0.5;
+    const l = Math.hypot(dx, dd);
+    return { o, ux: dx / l, ud: dd / l };
+  }
+  const broomReady = () => S.broomCharge >= D.broom.cooldown;
+
+  function toggleBroomAim() {
+    if (S.state !== "playing" || S.sweep) return;
+    if (!broomReady()) return;
+    S.broomAiming = !S.broomAiming;
+    S.broomAim = S.broomAiming ? { x: CX, y: HORIZON + (H - HORIZON) * 0.2 } : null;
+    updateBroomBtn();
+  }
+
+  function fireBroom(px, py) {
+    S.broomAiming = false; S.broomCharge = 0;
+    S.sweep = { lane: broomLane(px, py), s: 0 };
+    S.shake = Math.max(S.shake, 8); sfx.sweep();
+    updateBroomBtn();
+  }
+
+  // ground quad of the lane from distance a to b (screen points)
+  function laneQuad(lane, a, b) {
+    const hw = D.broom.laneWidth / 2, px = lane.ud, pd = -lane.ux; // perpendicular
+    const P = (s, side) => {
+      const x = lane.o.x + lane.ux * s + px * hw * side, d = Math.max(0.6, lane.o.d + lane.ud * s + pd * hw * side);
+      return [screenX(x, d), groundY(d)];
+    };
+    return [P(a, -1), P(a, 1), P(b, 1), P(b, -1)];
+  }
+  function fillQuad(q, style) {
+    ctx.fillStyle = style; ctx.beginPath(); q.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fill();
+  }
+
+  function updateSweep(dt) {
+    const sw = S.sweep; if (!sw) return;
+    const B = D.broom, lane = sw.lane, prev = sw.s;
+    sw.s += (B.length / B.sweepTime) * dt;
+    for (const e of S.enemies) {
+      if (e.dead) continue;
+      const rx = enemyX(e) - lane.o.x, rd = e.d - lane.o.d;
+      const along = rx * lane.ux + rd * lane.ud, across = Math.abs(rx * lane.ud - rd * lane.ux);
+      if (across <= B.laneWidth / 2 + 0.3 && along <= sw.s && along >= -1) {
+        e.dead = true; e.hp = 0; S.kills++;
+        const b = enemyBox(e);
+        for (let i = 0; i < 6; i++) S.particles.push({ x: b.sx, y: b.fy - b.h * 0.5, vx: (Math.random() - 0.5) * 220, vy: -Math.random() * 260, t: 0.8, c: "#fff", r: 4, star: true });
+      }
+    }
+    // dust behind the broom head
+    const hx = lane.o.x + lane.ux * sw.s, hd = lane.o.d + lane.ud * sw.s;
+    if (hd > 3 && sw.s > prev) for (let i = 0; i < 3; i++)
+      S.particles.push({ x: screenX(hx + (Math.random() - 0.5) * B.laneWidth, hd), y: groundY(hd), vx: (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 40, t: 0.4, c: "#d8c9a3aa", r: Math.min(10, Math.max(2, sizeAt(0.08, hd))), dust: true });
+    if (sw.s >= B.length) S.sweep = null;
+  }
+
+  function drawBroomLane() {
+    if (S.broomAiming && S.broomAim) {
+      const lane = broomLane(S.broomAim.x, S.broomAim.y);
+      fillQuad(laneQuad(lane, 0, D.broom.length), "rgba(255,255,255,0.22)");
+      ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.setLineDash([10, 8]); ctx.lineWidth = 2;
+      const q = laneQuad(lane, 0, D.broom.length);
+      ctx.beginPath(); ctx.moveTo(...q[0]); ctx.lineTo(...q[3]); ctx.moveTo(...q[1]); ctx.lineTo(...q[2]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (S.sweep) fillQuad(laneQuad(S.sweep.lane, 0, S.sweep.s), "rgba(255,240,180,0.25)");
+  }
+
+  function drawBroom() {
+    const sw = S.sweep; if (!sw) return;
+    const B = D.broom, lane = sw.lane;
+    const s = Math.max(sw.s, 0.6);
+    const x = lane.o.x + lane.ux * s, d = Math.max(0.9, lane.o.d + lane.ud * s);
+    const cx = screenX(x, d), gy = groundY(d);
+    const hw = (F * B.laneWidth) / 2 / d, bh = sizeAt(0.45, d), hb = sizeAt(0.18, d);
+    const g = ctx; g.save();
+    // handle (leaning back towards Viktor)
+    g.strokeStyle = "#8a5a2b"; g.lineWidth = Math.max(3, sizeAt(0.09, d)); g.lineCap = "round";
+    g.beginPath(); g.moveTo(cx, gy - bh); g.lineTo(cx - lane.ux * hw * 0.2, gy - bh - sizeAt(1.8, d)); g.stroke();
+    // head block
+    g.fillStyle = "#c0392b"; roundRect(g, cx - hw, gy - bh - hb, hw * 2, hb, hb * 0.4); g.fill();
+    // bristles
+    g.fillStyle = "#e9c46a"; g.beginPath(); g.moveTo(cx - hw, gy - bh); g.lineTo(cx + hw, gy - bh); g.lineTo(cx + hw * 1.05, gy); g.lineTo(cx - hw * 1.05, gy); g.closePath(); g.fill();
+    g.strokeStyle = "#b8893a"; g.lineWidth = 1.5;
+    for (let i = 0; i <= 14; i++) { const t = -1 + (2 * i) / 14; g.beginPath(); g.moveTo(cx + hw * t, gy - bh); g.lineTo(cx + hw * t * 1.05, gy); g.stroke(); }
+    g.restore();
+  }
+
   // ---------- Update ----------
   function update(dt) {
     S.recoil = Math.max(0, S.recoil - dt * 8);
@@ -233,6 +334,12 @@
       S.time += dt;
       S.score = Math.floor(S.time * D.score.perSecond + S.kills * D.score.perKill);
       S.cooldown = Math.max(0, S.cooldown - dt);
+      if (!S.sweep && !S.broomAiming && S.broomCharge < D.broom.cooldown) {
+        S.broomCharge = Math.min(D.broom.cooldown, S.broomCharge + dt);
+        if (broomReady()) sfx.ready();
+        updateBroomBtn();
+      }
+      updateSweep(dt);
       if (S.reloading > 0) {
         S.reloading -= dt;
         if (S.reloading <= 0) { S.reloading = 0; S.ammo = D.weapon.magazine; }
@@ -259,6 +366,7 @@
   }
 
   function die() {
+    S.broomAiming = false; S.sweep = null; updateBroomBtn();
     S.state = "dying"; S.deathT = 0; S.shake = 18; sfx.death();
     if (navigator.vibrate) navigator.vibrate([80, 60, 200]);
   }
@@ -507,9 +615,11 @@
     ctx.save(); ctx.translate(sx, sy);
     ctx.drawImage(bg, 0, 0, W, H);
 
+    drawBroomLane();
     // enemies far → near
     const sorted = S.enemies.slice().sort((a, b) => b.d - a.d);
     for (const e of sorted) drawIveta(e);
+    drawBroom();
 
     // tracers
     for (const t of S.tracers) {
@@ -529,7 +639,7 @@
     drawViktor();
 
     // crosshair at last aim
-    if (S.state === "playing") {
+    if (S.state === "playing" && !S.broomAiming) {
       ctx.strokeStyle = "#fffc"; ctx.lineWidth = 2;
       const { x, y } = S.aim, r = 12;
       ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
@@ -538,6 +648,10 @@
     }
     ctx.restore();
 
+    if (S.state === "playing" && S.broomAiming) {
+      ctx.fillStyle = "#fff"; ctx.font = "800 22px system-ui, sans-serif"; ctx.textAlign = "center";
+      ctx.shadowColor = "#000"; ctx.shadowBlur = 6; ctx.fillText(T.broomAim, CX, H * 0.25); ctx.shadowBlur = 0;
+    }
     // reload text
     if (S.state === "playing" && S.reloading > 0) {
       ctx.fillStyle = "#fff"; ctx.font = "800 26px system-ui, sans-serif"; ctx.textAlign = "center";
@@ -561,6 +675,13 @@
   }
 
   // ---------- HUD ----------
+  function updateBroomBtn() {
+    const btn = $("broom"), k = Math.min(1, S.broomCharge / D.broom.cooldown);
+    btn.style.setProperty("--p", `${k * 360}deg`);
+    btn.classList.toggle("ready", k >= 1);
+    btn.classList.toggle("aiming", S.broomAiming);
+    $("broomTime").textContent = k >= 1 ? "" : Math.ceil(D.broom.cooldown - S.broomCharge);
+  }
   let lastHud = "";
   function updateHud() {
     const ammoTxt = S.reloading > 0 ? "⟳ " + S.reloading.toFixed(1) : `${S.ammo} / ${D.weapon.magazine}`;
@@ -616,7 +737,7 @@
   // ---------- Screens ----------
   function gameOver() {
     S.state = "over";
-    $("hud").classList.add("hidden");
+    $("hud").classList.add("hidden"); $("broom").classList.add("hidden");
     $("stats").innerHTML = `${T.yourScore}: <b>${S.score}</b><br>${T.kills}: ${S.kills} · ${T.time}: ${Math.floor(S.time)}s`;
     $("saveMsg").textContent = "";
     $("nameForm").classList.remove("hidden");
@@ -632,7 +753,14 @@
   }
 
   // ---------- Input ----------
-  canvas.addEventListener("pointerdown", (ev) => { ev.preventDefault(); shoot(ev.clientX, ev.clientY); });
+  canvas.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    if (S.broomAiming) { S.broomAim = { x: ev.clientX, y: ev.clientY }; fireBroom(ev.clientX, ev.clientY); }
+    else shoot(ev.clientX, ev.clientY);
+  });
+  canvas.addEventListener("pointermove", (ev) => { if (S.broomAiming) S.broomAim = { x: ev.clientX, y: ev.clientY }; });
+  $("broom").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); ev.preventDefault(); toggleBroomAim(); });
+  window.addEventListener("keydown", (ev) => { if (ev.key === "b" || ev.key === "B") toggleBroomAim(); });
   $("ammo").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); startReload(); });
   window.addEventListener("keydown", (ev) => { if (ev.key === "r" || ev.key === "R") startReload(); });
   $("startBtn").addEventListener("click", start);
@@ -674,7 +802,7 @@
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    update(dt); draw();
+    update(S.broomAiming ? dt * D.broom.aimSlowMo : dt); draw();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

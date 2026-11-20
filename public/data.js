@@ -47,6 +47,16 @@ window.GAME_DATA = {
     splashRadius: 1.0         // metres: Ivetas this close to the one you hit also go down (0 = single target)
   },
 
+  // ---- Broom ability ----
+  broom: {
+    cooldown: 25,             // seconds to charge
+    laneWidth: 2.4,           // metres wide sweep
+    length: 40,               // how far forward it sweeps
+    sweepTime: 0.8,           // seconds for the broom to travel the whole lane
+    startDepth: 1.5,          // where the sweep starts (in front of Viktor)
+    aimSlowMo: 0.35           // game speed while you are aiming the broom
+  },
+
   // ---- Waves / difficulty ----
   spawn: {
     startInterval: 2.2,       // seconds between hordes at the start
@@ -98,6 +108,7 @@ window.GAME_DATA = {
     submit: "Save score",
     saved: "Saved!",
     offline: "Offline – score saved on this device only",
-    install: "Install app"
+    install: "Install app",
+    broomAim: "Tap where to sweep!"
   }
 };

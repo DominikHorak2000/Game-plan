@@ -191,7 +191,7 @@ window.GAME_DATA = {
     install: "Install app",
     milenaAppears: "A wild Milena\nhas appeared!",
     milenaJoins: "Milena joined\nyour side!",
-    powerOn: "BOSS MODE!\nInfinite money!",
+    powerOn: "Burget\nspecial spell!",
     broomAim: "Hold & drag to aim – release to sweep!"
   }
 };

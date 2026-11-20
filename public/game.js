@@ -193,11 +193,19 @@
     const g = heroGeom();
     S.tracers.push({ x1: g.muzzle.x, y1: g.muzzle.y, x2: px, y2: py, t: 0.09 });
     if (target) {
-      target.hp--; target.hitT = 0.12; sfx.hit();
-      for (let i = 0; i < 8; i++) S.particles.push({ x: px, y: py, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.8) * 300, t: 0.4, c: "#ffe27a", r: 3 });
-      if (target.hp <= 0) {
-        target.dead = true; S.kills++;
-        for (let i = 0; i < 6; i++) S.particles.push({ x: px, y: py, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 200, t: 0.8, c: "#fff", r: 4, star: true });
+      // splash: everyone standing within splashRadius (world metres) of the target is hit too
+      const R = D.weapon.splashRadius, tx = enemyX(target);
+      const victims = S.enemies.filter((e) => !e.dead && Math.hypot(enemyX(e) - tx, e.d - target.d) <= R);
+      sfx.hit();
+      S.particles.push({ x: px, y: py, vx: 0, vy: 0, t: 0.25, c: "#ffe27a", r: sizeAt(R, target.d), ring: true });
+      for (const v of victims) {
+        const vb = enemyBox(v), hx = v === target ? px : vb.sx, hy = v === target ? py : vb.fy - vb.h * 0.6;
+        v.hp--; v.hitT = 0.12;
+        for (let i = 0; i < 8; i++) S.particles.push({ x: hx, y: hy, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.8) * 300, t: 0.4, c: "#ffe27a", r: 3 });
+        if (v.hp <= 0) {
+          v.dead = true; S.kills++;
+          for (let i = 0; i < 6; i++) S.particles.push({ x: hx, y: hy, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 200, t: 0.8, c: "#fff", r: 4, star: true });
+        }
       }
     } else {
       S.particles.push({ x: px, y: py, vx: 0, vy: -40, t: 0.35, c: "#c9b99a", r: 6, dust: true });
@@ -218,7 +226,7 @@
     S.shake = Math.max(0, S.shake - dt * 30);
     S.tracers = S.tracers.filter((t) => (t.t -= dt) > 0);
     S.particles = S.particles.filter((p) => {
-      p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (!p.dust) p.vy += 600 * dt; return p.t > 0;
+      p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (!p.dust && !p.ring) p.vy += 600 * dt; return p.t > 0;
     });
 
     if (S.state === "playing") {
@@ -512,7 +520,8 @@
     for (const p of S.particles) {
       ctx.globalAlpha = Math.min(1, p.t * 3);
       ctx.fillStyle = p.c;
-      if (p.star) { drawStar(p.x, p.y, p.r * 1.6); }
+      if (p.ring) { ctx.strokeStyle = p.c; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * (1.2 - p.t * 0.8), p.r * 0.5 * (1.2 - p.t * 0.8), 0, 0, 7); ctx.stroke(); }
+      else if (p.star) { drawStar(p.x, p.y, p.r * 1.6); }
       else { ctx.beginPath(); ctx.arc(p.x, p.y, p.dust ? p.r * (1.5 - p.t) * 2 : p.r, 0, 7); ctx.fill(); }
     }
     ctx.globalAlpha = 1;

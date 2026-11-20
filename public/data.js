@@ -43,7 +43,8 @@ window.GAME_DATA = {
     magazine: 20,
     reloadTime: 3.0,          // seconds
     fireCooldown: 0.12,       // seconds between shots
-    hitPadding: 10            // extra px around enemies that still counts as a hit
+    hitPadding: 10,           // extra px around enemies that still counts as a hit
+    splashRadius: 1.0         // metres: Ivetas this close to the one you hit also go down (0 = single target)
   },
 
   // ---- Waves / difficulty ----

@@ -9,7 +9,9 @@ window.GAME_DATA = {
   // ---- Main character (the player) ----
   hero: {
     name: "Viktor",
-    photo: "viktor.jpg",      // portrait shown on the menu and game-over screens
+    photo: "viktor.jpg",      // portrait on menu/game-over, and his face when he turns around to reload
+    faceCrop: [0.22, 0.02, 0.62, 0.78], // x, y, w, h of the face inside the photo (fractions of photo width)
+    turnTime: 0.3,            // seconds to turn around at start/end of reload
     skin: "#e8b49a",
     hair: "#8a7d72",          // short grey-brown buzz cut
     shirtStripes: ["#e8321e", "#f7d417"], // red / yellow rugby hoops

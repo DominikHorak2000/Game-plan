@@ -325,6 +325,72 @@
     g.restore();
   }
 
+  const heroImg = new Image();
+  heroImg.src = D.hero.photo;
+
+  function turnAmount() {
+    if (S.reloading <= 0 || S.state !== "playing") return 0;
+    const tt = D.hero.turnTime, elapsed = D.weapon.reloadTime - S.reloading;
+    return Math.max(0, Math.min(1, elapsed / tt, S.reloading / tt));
+  }
+
+  // Viktor seen from the front: real photo as his face, rifle held across the body while reloading
+  function drawViktorFront(u, y0) {
+    const hero = D.hero, g = ctx, tw = u * 0.62, bw = u * 0.56;
+    const bodyPath = () => {
+      g.beginPath();
+      g.moveTo(CX - tw / 2, y0 + u * 0.06);
+      g.quadraticCurveTo(CX - tw / 2, y0 - u * 0.02, CX - tw * 0.2, y0 - u * 0.03);
+      g.lineTo(CX + tw * 0.2, y0 - u * 0.03);
+      g.quadraticCurveTo(CX + tw / 2, y0 - u * 0.02, CX + tw / 2, y0 + u * 0.06);
+      g.lineTo(CX + bw / 2, H + 20); g.lineTo(CX - bw / 2, H + 20); g.closePath();
+    };
+    // torso
+    g.save(); bodyPath(); g.clip();
+    const band = u * 0.075;
+    for (let y = y0 - u * 0.05, i = 0; y < H + 30; y += band, i++) { g.fillStyle = hero.shirtStripes[i % 2]; g.fillRect(CX - tw, y, tw * 2, band + 1); }
+    const sh = g.createLinearGradient(CX - tw / 2, 0, CX + tw / 2, 0);
+    sh.addColorStop(0, "#0003"); sh.addColorStop(0.5, "#0000"); sh.addColorStop(1, "#0004");
+    g.fillStyle = sh; g.fillRect(CX - tw, y0 - u * 0.1, tw * 2, H);
+    g.restore();
+    // neck + collar (polo with placket)
+    g.fillStyle = hero.skin; g.fillRect(CX - u * 0.06, y0 - u * 0.1, u * 0.12, u * 0.09);
+    g.fillStyle = hero.shirtStripes[0];
+    g.beginPath(); g.moveTo(CX - u * 0.13, y0 - u * 0.05); g.lineTo(CX, y0 + u * 0.08); g.lineTo(CX - u * 0.03, y0 - u * 0.04); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(CX + u * 0.13, y0 - u * 0.05); g.lineTo(CX, y0 + u * 0.08); g.lineTo(CX + u * 0.03, y0 - u * 0.04); g.closePath(); g.fill();
+    g.fillStyle = "#c41a14"; g.fillRect(CX - u * 0.015, y0 + u * 0.02, u * 0.03, u * 0.14);
+
+    // rifle across the chest, magazine out → in animation
+    const prog = 1 - S.reloading / D.weapon.reloadTime;
+    g.save(); g.translate(CX, y0 + u * 0.3); g.rotate(-0.45);
+    g.fillStyle = "#5a3a22"; roundRect(g, -u * 0.34, -u * 0.035, u * 0.18, u * 0.07, u * 0.015); g.fill();
+    g.fillStyle = "#2b2b2e"; roundRect(g, -u * 0.17, -u * 0.04, u * 0.3, u * 0.08, u * 0.015); g.fill();
+    g.fillStyle = "#111"; g.fillRect(u * 0.12, -u * 0.012, u * 0.24, u * 0.024);
+    const magDrop = prog < 0.5 ? Math.min(1, prog * 4) : Math.max(0, 1 - (prog - 0.5) * 4);
+    g.fillStyle = "#1d1d20"; roundRect(g, -u * 0.04, u * 0.03 + magDrop * u * 0.12, u * 0.06, u * 0.12, u * 0.01); g.fill();
+    g.restore();
+    // arms: right hand on grip, left hand on the magazine
+    const arm = (sx, sy, ex, ey, c) => {
+      g.lineCap = "round";
+      g.strokeStyle = hero.skin; g.lineWidth = u * 0.085; g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.stroke();
+      g.strokeStyle = c; g.lineWidth = u * 0.11; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + (ex - sx) * 0.35, sy + (ey - sy) * 0.35); g.stroke();
+    };
+    const magY = y0 + u * 0.36 + magDrop * u * 0.1;
+    arm(CX - tw * 0.42, y0 + u * 0.05, CX - u * 0.12, y0 + u * 0.38, hero.shirtStripes[1]);
+    arm(CX + tw * 0.42, y0 + u * 0.05, CX + u * 0.02, magY, hero.shirtStripes[0]);
+
+    // head: the real photo
+    const hx = CX, hy = y0 - u * 0.22, rx = u * 0.15, ry = u * 0.185;
+    g.save();
+    g.beginPath(); g.ellipse(hx, hy, rx, ry, 0, 0, 7); g.clip();
+    if (heroImg.complete && heroImg.naturalWidth) {
+      const [sx, sy, sw, sh2] = hero.faceCrop.map((v) => v * heroImg.naturalWidth);
+      g.drawImage(heroImg, sx, sy, sw, sh2, hx - rx, hy - ry, rx * 2, ry * 2);
+    } else { g.fillStyle = hero.skin; g.fillRect(hx - rx, hy - ry, rx * 2, ry * 2); }
+    g.restore();
+    g.strokeStyle = "#0004"; g.lineWidth = 2; g.beginPath(); g.ellipse(hx, hy, rx, ry, 0, 0, 7); g.stroke();
+  }
+
   function drawViktor() {
     const hero = D.hero, g = ctx, G = heroGeom(), u = G.u;
     g.save();
@@ -335,6 +401,10 @@
       g.rotate(-e * 0.9);
       g.translate(-CX, -H + e * u * 0.25 - Math.sin(k * Math.PI) * u * 0.05);
     }
+    // turn around to face the camera while reloading (horizontal flip animation)
+    const f = turnAmount(), flip = Math.cos(Math.PI * f);
+    if (f > 0) { g.translate(CX, 0); g.scale(Math.max(0.04, Math.abs(flip)), 1); g.translate(-CX, 0); }
+    if (flip < 0) { drawViktorFront(u, G.y0); g.restore(); return; }
     const y0 = G.y0;
     const tw = u * 0.62, bw = u * 0.56;
 

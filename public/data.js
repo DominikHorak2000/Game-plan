@@ -70,7 +70,7 @@ window.GAME_DATA = {
       weapon: {
         name: "Money gun",
         look: "money",
-        magazine: 40,
+        magazine: 45,
         reloadTime: 3.0,
         fireCooldown: 0.08,       // hold the screen to keep firing
         auto: true,               // true = hold to fire

@@ -576,6 +576,7 @@
   if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 
   // ---------- Texts ----------
+  document.querySelectorAll(".portrait").forEach((el) => { el.src = D.hero.photo; el.alt = D.hero.name; });
   document.title = D.title;
   $("title").textContent = D.title;
   $("subtitle").textContent = T.subtitle;

@@ -9,6 +9,7 @@ window.GAME_DATA = {
   // ---- Main character (the player) ----
   hero: {
     name: "Viktor",
+    photo: "viktor.jpg",      // portrait shown on the menu and game-over screens
     skin: "#e8b49a",
     hair: "#8a7d72",          // short grey-brown buzz cut
     shirtStripes: ["#e8321e", "#f7d417"], // red / yellow rugby hoops

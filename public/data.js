@@ -68,7 +68,8 @@ window.GAME_DATA = {
     joinTime: 0.9,            // seconds to run over to Viktor after being shot
     homeX: -0.75,             // where she waits next to Viktor
     homeDepth: 3.4,
-    attackInterval: 2.5,      // seconds between her attacks
+    attackInterval: 2.0,      // seconds between her attacks
+    pounceRadius: 2.0,        // metres: she lands in a group and takes out every Iveta this close
     leapTime: 0.35,           // seconds for a jump out (and back)
     maxReach: 30              // only attacks Ivetas closer than this
   },

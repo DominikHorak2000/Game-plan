@@ -372,9 +372,15 @@
       dog.x = M.homeX; dog.d = M.homeDepth; dog.face = 1;
       dog.cd -= dt;
       if (dog.cd <= 0) {
-        // jump at the closest living Iveta
-        let best = null;
-        for (const e of S.enemies) if (!e.dead && e.d < M.maxReach && (!best || e.d < best.d)) best = e;
+        // jump at the biggest group of Ivetas (closest group wins a tie)
+        const alive = S.enemies.filter((e) => !e.dead && e.d < M.maxReach);
+        let best = null, bestScore = -1;
+        for (const e of alive) {
+          const ex = enemyX(e);
+          const n = alive.filter((o) => Math.hypot(enemyX(o) - ex, o.d - e.d) <= M.pounceRadius).length;
+          const sc = n * 100 - e.d; // group size first, then closeness
+          if (sc > bestScore) { bestScore = sc; best = e; }
+        }
         if (best) { dog.state = "leap"; dog.t = 0; dog.target = best; dog.face = enemyX(best) >= dog.x ? 1 : -1; }
         else dog.cd = 0.3;
       }
@@ -382,9 +388,14 @@
       const e = dog.target, k = Math.min(1, dog.t / M.leapTime);
       dog.x = lerp(M.homeX, enemyX(e), ease(k)); dog.d = lerp(M.homeDepth, Math.max(M.homeDepth, e.d - 0.2), ease(k));
       if (k >= 1) {
-        if (!e.dead) {
-          e.dead = true; e.hp = 0; S.kills++; sfx.bark();
-          const b = enemyBox(e);
+        // landing shockwave: every Iveta within pounceRadius goes down
+        const lx = dog.x, ld = Math.max(dog.d, e.d);
+        sfx.bark(); S.shake = Math.max(S.shake, 6);
+        S.particles.push({ x: screenX(lx, ld), y: groundY(ld), vx: 0, vy: 0, t: 0.35, c: "#ff7aa8", r: sizeAt(M.pounceRadius, ld), ring: true });
+        for (const o of S.enemies) {
+          if (o.dead || Math.hypot(enemyX(o) - lx, o.d - ld) > M.pounceRadius) continue;
+          o.dead = true; o.hp = 0; S.kills++;
+          const b = enemyBox(o);
           for (let i = 0; i < 6; i++) S.particles.push({ x: b.sx, y: b.fy - b.h * 0.5, vx: (Math.random() - 0.5) * 200, vy: -Math.random() * 240, t: 0.8, c: "#fff", r: 4, star: true });
         }
         dog.state = "back"; dog.t = 0; dog.bx = dog.x; dog.bd = dog.d;

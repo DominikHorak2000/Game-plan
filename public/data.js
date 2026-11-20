@@ -45,9 +45,16 @@ window.GAME_DATA = {
     {
       id: "petr",
       name: "Petr Burget",
-      tagline: "Money gun · hold to spray",
+      tagline: "Money gun · Boss mode",
       broom: false,
       milena: false,
+      nuke: true,             // has the Boss mode ability (see "nuke" below)
+      powerHero: {            // outfit while Boss mode is active
+        shirtStripes: ["#d4a93a", "#c99a2e"], // gold suit
+        sleeves: ["#d4a93a", "#d4a93a"],
+        collar: "#111111",
+        placket: "#111111"
+      },
       hero: {
         name: "Petr",
         photo: "petr.jpg",
@@ -96,12 +103,23 @@ window.GAME_DATA = {
 
   // ---- Broom ability ----
   broom: {
-    cooldown: 15,             // seconds to charge
+    cooldown: 10,             // seconds to charge
     laneWidth: 2.4,           // metres wide sweep
     length: 40,               // how far forward it sweeps
     sweepTime: 0.8,           // seconds for the broom to travel the whole lane
     startDepth: 1.5,          // where the sweep starts (in front of Viktor)
     aimSlowMo: 0.35           // game speed while you are aiming the broom
+  },
+
+  // ---- Petr's Boss mode: infinite ammo + nukes ----
+  nuke: {
+    cooldown: 18,             // seconds to charge
+    duration: 8,              // seconds Boss mode lasts
+    interval: 0.9,            // average seconds between nukes
+    radius: 7,                // metres: every Iveta this close to the impact goes down
+    fallTime: 1.0,            // seconds a nuke takes to fall
+    depth: [8, 32],           // where on the field they land
+    spreadX: 7
   },
 
   // ---- Milena (white dog ally) ----
@@ -176,6 +194,7 @@ window.GAME_DATA = {
     install: "Install app",
     milenaAppears: "A wild Milena\nhas appeared!",
     milenaJoins: "Milena joined\nyour side!",
+    powerOn: "BOSS MODE!\nInfinite money!",
     broomAim: "Hold & drag to aim – release to sweep!"
   }
 };

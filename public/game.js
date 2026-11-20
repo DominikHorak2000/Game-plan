@@ -117,6 +117,8 @@
     reload: () => { tone(300, 200, 0.08, 0.1); setTimeout(() => tone(500, 400, 0.08, 0.1), 2700); },
     bark: () => { tone(700, 380, 0.09, 0.15, "square"); setTimeout(() => tone(760, 420, 0.1, 0.15, "square"), 130); },
     sweep: () => { noise(0.9, 900, 0.5); tone(200, 80, 0.6, 0.12, "triangle"); },
+    whistle: () => tone(1800, 500, 0.7, 0.05, "sine"),
+    boom: () => { noise(1.4, 300, 0.9); tone(90, 30, 1.0, 0.3, "sawtooth"); },
     ready: () => { tone(600, 900, 0.12, 0.1, "triangle"); setTimeout(() => tone(900, 1300, 0.15, 0.1, "triangle"), 120); },
     hit: () => tone(500, 120, 0.15, 0.08, "triangle"),
     death: () => { tone(300, 40, 1.2, 0.2, "sawtooth"); noise(0.6, 400, 0.4); }
@@ -131,7 +133,7 @@
     spawnTimer: 0, spawnInterval: D.spawn.startInterval,
     aim: { x: 0, y: 0 }, recoil: 0, flash: 0,
     deathT: 0, shake: 0,
-    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null,
+    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0,
       dog: null, milenaSpawned: false, banner: null
   };
 
@@ -142,11 +144,12 @@
       enemies: [], particles: [], tracers: [],
       spawnTimer: 0.5, spawnInterval: D.spawn.startInterval,
       recoil: 0, flash: 0, deathT: 0, shake: 0,
-      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null,
+      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0,
       dog: null, milenaSpawned: false, banner: null
     });
     S.aim = { x: CX, y: HORIZON };
-    $("hud").classList.remove("hidden"); $("broom").classList.toggle("hidden", !CHAR.broom); S.hold = null;
+    $("hud").classList.remove("hidden"); $("broom").classList.toggle("hidden", !(CHAR.broom || CHAR.nuke)); S.hold = null;
+    D.hero = CHAR.hero; document.querySelector("#broom .ico").textContent = CHAR.nuke ? "☢️" : "🧹";
     updateHud(); updateBroomBtn();
   }
 
@@ -194,8 +197,9 @@
     if (S.state !== "playing") return;
     S.aim = { x: px, y: py };
     if (S.reloading > 0 || S.cooldown > 0) return;
-    if (S.ammo <= 0) { sfx.empty(); startReload(); return; }
-    S.ammo--; S.cooldown = D.weapon.fireCooldown;
+    if (S.ammo <= 0 && !S.power) { sfx.empty(); startReload(); return; }
+    if (!S.power) S.ammo--;
+    S.cooldown = D.weapon.fireCooldown;
     S.recoil = 1; S.flash = 1; S.shake = Math.max(S.shake, 4);
     sfx.shot();
 
@@ -248,7 +252,7 @@
   }
 
   function startReload() {
-    if (S.reloading > 0 || S.ammo === D.weapon.magazine || S.state !== "playing") return;
+    if (S.reloading > 0 || S.ammo === D.weapon.magazine || S.state !== "playing" || S.power) return;
     S.reloading = D.weapon.reloadTime; sfx.reload(); updateHud();
   }
 
@@ -267,11 +271,13 @@
     const l = Math.hypot(dx, dd);
     return { o, ux: dx / l, ud: dd / l };
   }
-  const broomReady = () => S.broomCharge >= D.broom.cooldown;
+  const abilityCd = () => (CHAR.nuke ? D.nuke.cooldown : D.broom.cooldown);
+  const broomReady = () => S.broomCharge >= abilityCd();
 
   function toggleBroomAim() {
-    if (S.state !== "playing" || S.sweep) return;
+    if (S.state !== "playing" || S.sweep || S.power) return;
     if (!broomReady()) return;
+    if (CHAR.nuke) { activatePower(); return; }
     S.broomAiming = !S.broomAiming;
     S.broomAim = S.broomAiming ? { x: CX, y: HORIZON + (H - HORIZON) * 0.2 } : null;
     updateBroomBtn();
@@ -483,6 +489,83 @@
     ctx.restore();
   }
 
+  // ---------- Petr's power-up: outfit change, infinite ammo, nukes from the sky ----------
+  function activatePower() {
+    const N = D.nuke;
+    S.broomCharge = 0;
+    S.power = { t: N.duration };
+    S.reloading = 0; S.ammo = D.weapon.magazine;
+    D.hero = Object.assign({}, CHAR.hero, CHAR.powerHero || {});
+    S.nukeTimer = 0.2;
+    showBanner(D.text.powerOn, 2); sfx.ready();
+    updateBroomBtn(); updateHud();
+  }
+  function endPower() {
+    if (!S.power) return;
+    S.power = null; D.hero = CHAR.hero; updateBroomBtn();
+  }
+  function updatePower(dt) {
+    const N = D.nuke;
+    if (S.power) {
+      S.power.t -= dt;
+      S.nukeTimer -= dt;
+      if (S.nukeTimer <= 0) {
+        S.nukeTimer = N.interval * (0.6 + Math.random() * 0.8);
+        S.nukes.push({ x: (Math.random() * 2 - 1) * N.spreadX, d: N.depth[0] + Math.random() * (N.depth[1] - N.depth[0]), t: 0 });
+        sfx.whistle();
+      }
+      if (S.power.t <= 0) endPower();
+      updateBroomBtn();
+    }
+    // falling bombs (keep falling even after the power ends)
+    for (const n of S.nukes) {
+      n.t += dt;
+      if (n.t >= N.fallTime && !n.done) {
+        n.done = true;
+        S.booms.push({ x: n.x, d: n.d, t: 0 });
+        S.shake = Math.max(S.shake, 16); S.whiteFlash = 0.5; sfx.boom();
+        for (const e of S.enemies) {
+          if (e.dead || Math.hypot(enemyX(e) - n.x, e.d - n.d) > N.radius) continue;
+          e.dead = true; e.hp = 0; S.kills++;
+        }
+      }
+    }
+    S.nukes = S.nukes.filter((n) => !n.done);
+    S.booms = S.booms.filter((b) => (b.t += dt) < 1.1);
+    S.whiteFlash = Math.max(0, S.whiteFlash - dt * 1.5);
+  }
+  function drawNukes() {
+    const N = D.nuke, g = ctx;
+    for (const n of S.nukes) {
+      const k = Math.min(1, n.t / N.fallTime), gx = screenX(n.x, n.d), gy = groundY(n.d);
+      // shadow / target circle on the ground
+      g.strokeStyle = `rgba(255,60,40,${0.3 + 0.5 * k})`; g.lineWidth = 2; g.setLineDash([6, 6]);
+      g.beginPath(); g.ellipse(gx, gy, (F * N.radius) / n.d, (F * N.radius) / n.d * 0.18, 0, 0, 7); g.stroke(); g.setLineDash([]);
+      // the bomb
+      const by = lerp(-60, gy - sizeAt(0.6, n.d), k * k), sz = Math.max(10, sizeAt(1.1, n.d));
+      g.save(); g.translate(gx, by);
+      g.fillStyle = "#3b3f45"; g.beginPath(); g.ellipse(0, 0, sz * 0.3, sz * 0.55, 0, 0, 7); g.fill();
+      g.fillStyle = "#f7d417"; g.fillRect(-sz * 0.3, -sz * 0.1, sz * 0.6, sz * 0.12);
+      g.fillStyle = "#555"; g.beginPath(); g.moveTo(-sz * 0.3, -sz * 0.45); g.lineTo(-sz * 0.45, -sz * 0.8); g.lineTo(sz * 0.45, -sz * 0.8); g.lineTo(sz * 0.3, -sz * 0.45); g.closePath(); g.fill();
+      g.fillStyle = "#111"; g.font = `${Math.max(8, sz * 0.35)}px system-ui`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("☢", 0, sz * 0.15);
+      g.restore();
+    }
+    for (const b of S.booms) {
+      const k = b.t / 1.1, gx = screenX(b.x, b.d), gy = groundY(b.d), R = (F * N.radius) / b.d;
+      g.save(); g.globalAlpha = 1 - k;
+      // ground shockwave
+      g.strokeStyle = "#ffe27a"; g.lineWidth = 4;
+      g.beginPath(); g.ellipse(gx, gy, R * Math.min(1, k * 3), R * 0.18 * Math.min(1, k * 3), 0, 0, 7); g.stroke();
+      // stem + mushroom cap
+      const capR = R * 0.35 * (0.5 + k), capY = gy - R * 0.9 * Math.min(1, k * 2);
+      g.fillStyle = "#c8581f"; g.fillRect(gx - capR * 0.25, capY, capR * 0.5, gy - capY);
+      const grd = g.createRadialGradient(gx, capY, 0, gx, capY, capR);
+      grd.addColorStop(0, "#fff6c8"); grd.addColorStop(0.35, "#ffb02e"); grd.addColorStop(0.75, "#e8321e"); grd.addColorStop(1, "#5a2a1a00");
+      g.fillStyle = grd; g.beginPath(); g.ellipse(gx, capY, capR, capR * 0.65, 0, 0, 7); g.fill();
+      g.restore();
+    }
+  }
+
   // ---------- Update ----------
   function update(dt) {
     S.recoil = Math.max(0, S.recoil - dt * 8);
@@ -499,12 +582,13 @@
       S.score = Math.floor(S.time * D.score.perSecond + S.kills * D.score.perKill);
       S.cooldown = Math.max(0, S.cooldown - dt);
       if (S.hold && D.weapon.auto && S.cooldown <= 0 && S.reloading <= 0) shoot(S.hold.x, S.hold.y);
-      if (CHAR.broom && !S.sweep && !S.broomAiming && S.broomCharge < D.broom.cooldown) {
-        S.broomCharge = Math.min(D.broom.cooldown, S.broomCharge + dt);
+      if ((CHAR.broom || CHAR.nuke) && !S.sweep && !S.broomAiming && !S.power && S.broomCharge < abilityCd()) {
+        S.broomCharge = Math.min(abilityCd(), S.broomCharge + dt);
         if (broomReady()) sfx.ready();
         updateBroomBtn();
       }
       updateSweep(dt);
+      updatePower(dt);
       if (CHAR.milena && !S.milenaSpawned && S.score >= D.milena.appearScore) spawnDog();
       updateDog(dt);
       if (S.reloading > 0) {
@@ -533,7 +617,7 @@
   }
 
   function die() {
-    S.broomAiming = false; S.sweep = null; updateBroomBtn();
+    S.broomAiming = false; S.sweep = null; endPower(); updateBroomBtn();
     S.state = "dying"; S.deathT = 0; S.shake = 18; sfx.death();
     if (navigator.vibrate) navigator.vibrate([80, 60, 200]);
   }
@@ -819,6 +903,7 @@
     const sorted = S.enemies.slice().sort((a, b) => b.d - a.d);
     for (const e of sorted) drawIveta(e);
     drawBroom();
+    drawNukes();
     drawDog();
 
     // tracers
@@ -857,6 +942,7 @@
       ctx.fillStyle = "#fff"; ctx.font = "800 22px system-ui, sans-serif"; ctx.textAlign = "center";
       ctx.shadowColor = "#000"; ctx.shadowBlur = 6; ctx.fillText(T.broomAim, CX, H * 0.25); ctx.shadowBlur = 0;
     }
+    if (S.whiteFlash > 0) { ctx.fillStyle = `rgba(255,250,220,${S.whiteFlash})`; ctx.fillRect(0, 0, W, H); }
     drawBanner();
     // reload text
     if (S.state === "playing" && S.reloading > 0) {
@@ -882,15 +968,16 @@
 
   // ---------- HUD ----------
   function updateBroomBtn() {
-    const btn = $("broom"), k = Math.min(1, S.broomCharge / D.broom.cooldown);
+    const btn = $("broom"), cd = abilityCd();
+    const k = S.power ? S.power.t / D.nuke.duration : Math.min(1, S.broomCharge / cd);
     btn.style.setProperty("--p", `${k * 360}deg`);
-    btn.classList.toggle("ready", k >= 1);
-    btn.classList.toggle("aiming", S.broomAiming);
-    $("broomTime").textContent = k >= 1 ? "" : Math.ceil(D.broom.cooldown - S.broomCharge);
+    btn.classList.toggle("ready", !S.power && k >= 1);
+    btn.classList.toggle("aiming", S.broomAiming || !!S.power);
+    $("broomTime").textContent = S.power ? Math.ceil(S.power.t) + "s" : k >= 1 ? "" : Math.ceil(cd - S.broomCharge);
   }
   let lastHud = "";
   function updateHud() {
-    const ammoTxt = S.reloading > 0 ? "⟳ " + S.reloading.toFixed(1) : `${S.ammo} / ${D.weapon.magazine}`;
+    const ammoTxt = S.power ? "∞" : S.reloading > 0 ? "⟳ " + S.reloading.toFixed(1) : `${S.ammo} / ${D.weapon.magazine}`;
     const key = S.score + "|" + S.kills + "|" + ammoTxt;
     if (key === lastHud) return; lastHud = key;
     $("score").textContent = S.score;

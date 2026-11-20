@@ -57,6 +57,22 @@ window.GAME_DATA = {
     aimSlowMo: 0.35           // game speed while you are aiming the broom
   },
 
+  // ---- Milena (white dog ally) ----
+  milena: {
+    name: "Milena",
+    appearScore: 350,         // she shows up once per game at this score
+    color: "#ffffff",
+    size: 0.45,               // metres tall
+    spawnDepth: [10, 16],     // how far away she appears
+    spawnSpreadX: 3.5,
+    joinTime: 0.9,            // seconds to run over to Viktor after being shot
+    homeX: -0.75,             // where she waits next to Viktor
+    homeDepth: 3.4,
+    attackInterval: 2.5,      // seconds between her attacks
+    leapTime: 0.35,           // seconds for a jump out (and back)
+    maxReach: 30              // only attacks Ivetas closer than this
+  },
+
   // ---- Waves / difficulty ----
   spawn: {
     startInterval: 2.2,       // seconds between hordes at the start
@@ -109,6 +125,8 @@ window.GAME_DATA = {
     saved: "Saved!",
     offline: "Offline – score saved on this device only",
     install: "Install app",
+    milenaAppears: "A wild Milena\nhas appeared!",
+    milenaJoins: "Milena joined\nyour side!",
     broomAim: "Hold & drag to aim – release to sweep!"
   }
 };

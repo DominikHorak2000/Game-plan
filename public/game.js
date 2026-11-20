@@ -103,6 +103,7 @@
     shot: () => noise(0.18, 2200, 0.5),
     empty: () => tone(900, 700, 0.05, 0.08),
     reload: () => { tone(300, 200, 0.08, 0.1); setTimeout(() => tone(500, 400, 0.08, 0.1), 2700); },
+    bark: () => { tone(700, 380, 0.09, 0.15, "square"); setTimeout(() => tone(760, 420, 0.1, 0.15, "square"), 130); },
     sweep: () => { noise(0.9, 900, 0.5); tone(200, 80, 0.6, 0.12, "triangle"); },
     ready: () => { tone(600, 900, 0.12, 0.1, "triangle"); setTimeout(() => tone(900, 1300, 0.15, 0.1, "triangle"), 120); },
     hit: () => tone(500, 120, 0.15, 0.08, "triangle"),
@@ -118,7 +119,8 @@
     spawnTimer: 0, spawnInterval: D.spawn.startInterval,
     aim: { x: 0, y: 0 }, recoil: 0, flash: 0,
     deathT: 0, shake: 0,
-    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null
+    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null,
+      dog: null, milenaSpawned: false, banner: null
   };
 
   function reset() {
@@ -128,7 +130,8 @@
       enemies: [], particles: [], tracers: [],
       spawnTimer: 0.5, spawnInterval: D.spawn.startInterval,
       recoil: 0, flash: 0, deathT: 0, shake: 0,
-      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null
+      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null,
+      dog: null, milenaSpawned: false, banner: null
     });
     S.aim = { x: CX, y: HORIZON };
     $("hud").classList.remove("hidden"); $("broom").classList.remove("hidden");
@@ -184,8 +187,17 @@
     S.recoil = 1; S.flash = 1; S.shake = Math.max(S.shake, 4);
     sfx.shot();
 
-    // hitscan: nearest living enemy under the tap
     const pad = D.weapon.hitPadding;
+    // shooting the wild Milena makes her join Viktor
+    if (S.dog && S.dog.state === "wild") {
+      const b = dogBox();
+      if (px >= b.x1 - pad && px <= b.x2 + pad && py >= b.y1 - pad * 2 && py <= b.y2 + pad) {
+        const g0 = heroGeom();
+        S.tracers.push({ x1: g0.muzzle.x, y1: g0.muzzle.y, x2: px, y2: py, t: 0.09 });
+        befriendDog(); if (S.ammo === 0) startReload(); updateHud(); return;
+      }
+    }
+    // hitscan: nearest living enemy under the tap
     let target = null;
     for (const e of S.enemies) {
       if (e.dead) continue;
@@ -320,12 +332,136 @@
     g.restore();
   }
 
+  // ---------- Milena (the dog) ----------
+  function showBanner(text, dur = 3) { S.banner = { text, t: 0, dur }; }
+
+  function spawnDog() {
+    const M = D.milena;
+    S.milenaSpawned = true;
+    S.dog = { state: "wild", x: (Math.random() * 2 - 1) * M.spawnSpreadX, d: M.spawnDepth[0] + Math.random() * (M.spawnDepth[1] - M.spawnDepth[0]),
+      t: 0, cd: M.attackInterval, phase: 0, face: 1, target: null };
+    showBanner(D.text.milenaAppears, 3); sfx.ready();
+  }
+
+  function befriendDog() {
+    const M = D.milena, dog = S.dog;
+    dog.state = "joining"; dog.t = 0; dog.fx = dog.x; dog.fd = dog.d; dog.cd = M.attackInterval;
+    showBanner(D.text.milenaJoins, 2.2); sfx.bark();
+    for (let i = 0; i < 10; i++) { const b = dogBox(); S.particles.push({ x: (b.x1 + b.x2) / 2, y: b.y1, vx: (Math.random() - 0.5) * 200, vy: -Math.random() * 220, t: 0.9, c: "#ff7aa8", r: 5, star: true }); }
+  }
+
+  function dogBox() {
+    const dog = S.dog, h = sizeAt(D.milena.size, dog.d), fy = groundY(dog.d), sx = screenX(dog.x, dog.d);
+    return { sx, fy, h, x1: sx - h * 0.8, x2: sx + h * 0.8, y1: fy - h, y2: fy };
+  }
+
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const ease = (k) => k * k * (3 - 2 * k);
+
+  function updateDog(dt) {
+    const dog = S.dog; if (!dog) return;
+    const M = D.milena;
+    dog.t += dt; dog.phase += dt * 10;
+    if (dog.state === "wild") {
+      dog.x += Math.sin(dog.t * 0.8) * dt * 0.8; dog.face = Math.cos(dog.t * 0.8) >= 0 ? 1 : -1;
+    } else if (dog.state === "joining") {
+      const k = Math.min(1, dog.t / M.joinTime);
+      dog.x = lerp(dog.fx, M.homeX, ease(k)); dog.d = lerp(dog.fd, M.homeDepth, ease(k)); dog.face = M.homeX > dog.fx ? 1 : -1;
+      if (k >= 1) { dog.state = "home"; dog.t = 0; }
+    } else if (dog.state === "home") {
+      dog.x = M.homeX; dog.d = M.homeDepth; dog.face = 1;
+      dog.cd -= dt;
+      if (dog.cd <= 0) {
+        // jump at the closest living Iveta
+        let best = null;
+        for (const e of S.enemies) if (!e.dead && e.d < M.maxReach && (!best || e.d < best.d)) best = e;
+        if (best) { dog.state = "leap"; dog.t = 0; dog.target = best; dog.face = enemyX(best) >= dog.x ? 1 : -1; }
+        else dog.cd = 0.3;
+      }
+    } else if (dog.state === "leap") {
+      const e = dog.target, k = Math.min(1, dog.t / M.leapTime);
+      dog.x = lerp(M.homeX, enemyX(e), ease(k)); dog.d = lerp(M.homeDepth, Math.max(M.homeDepth, e.d - 0.2), ease(k));
+      if (k >= 1) {
+        if (!e.dead) {
+          e.dead = true; e.hp = 0; S.kills++; sfx.bark();
+          const b = enemyBox(e);
+          for (let i = 0; i < 6; i++) S.particles.push({ x: b.sx, y: b.fy - b.h * 0.5, vx: (Math.random() - 0.5) * 200, vy: -Math.random() * 240, t: 0.8, c: "#fff", r: 4, star: true });
+        }
+        dog.state = "back"; dog.t = 0; dog.bx = dog.x; dog.bd = dog.d;
+      }
+    } else if (dog.state === "back") {
+      const k = Math.min(1, dog.t / M.leapTime);
+      dog.x = lerp(dog.bx, M.homeX, ease(k)); dog.d = lerp(dog.bd, M.homeDepth, ease(k)); dog.face = M.homeX >= dog.bx ? 1 : -1;
+      if (k >= 1) { dog.state = "home"; dog.t = 0; dog.cd = M.attackInterval; }
+    }
+  }
+
+  // small fluffy white dog
+  function drawDog() {
+    const dog = S.dog; if (!dog) return;
+    const M = D.milena, b = dogBox(), h = b.h, g = ctx;
+    const airborne = dog.state === "leap" || dog.state === "back" || dog.state === "joining";
+    const hop = airborne ? Math.sin(Math.min(1, dog.t / (dog.state === "joining" ? M.joinTime : M.leapTime)) * Math.PI) * h * 1.2
+      : dog.state === "wild" ? Math.abs(Math.sin(dog.phase * 0.5)) * h * 0.25 : 0;
+    g.fillStyle = "#0003"; g.beginPath(); g.ellipse(b.sx, b.fy, h * 0.6, h * 0.12, 0, 0, 7); g.fill();
+    g.save(); g.translate(b.sx, b.fy - hop); g.scale(dog.face, 1);
+    const fur = M.color, legSw = airborne ? 0.6 : Math.sin(dog.phase) * 0.3;
+    // legs
+    g.strokeStyle = fur; g.lineCap = "round"; g.lineWidth = h * 0.16;
+    [[-0.3, 1], [-0.15, -1], [0.25, 1], [0.38, -1]].forEach(([lx, s2]) => {
+      g.beginPath(); g.moveTo(h * lx, -h * 0.35); g.lineTo(h * (lx + legSw * 0.2 * s2), -h * 0.06); g.stroke();
+    });
+    // tail
+    g.lineWidth = h * 0.14; g.beginPath(); g.moveTo(-h * 0.45, -h * 0.5); g.quadraticCurveTo(-h * 0.7, -h * (0.9 + Math.sin(dog.phase * 2) * 0.1), -h * 0.5, -h * 0.85); g.stroke();
+    // body (fluffy)
+    g.fillStyle = fur;
+    for (const [cx, cy, r] of [[-0.25, -0.5, 0.26], [0.05, -0.52, 0.28], [0.3, -0.5, 0.25], [0, -0.38, 0.24]]) { g.beginPath(); g.arc(h * cx, h * cy, h * r, 0, 7); g.fill(); }
+    // head
+    g.beginPath(); g.arc(h * 0.5, -h * 0.8, h * 0.24, 0, 7); g.fill();
+    g.beginPath(); g.ellipse(h * 0.7, -h * 0.74, h * 0.13, h * 0.1, 0, 0, 7); g.fill();
+    // ears
+    g.fillStyle = "#ececec"; g.beginPath(); g.ellipse(h * 0.33, -h * 0.75, h * 0.08, h * 0.17, 0.3, 0, 7); g.fill();
+    // outline hint so she shows on bright grass
+    g.strokeStyle = "#0002"; g.lineWidth = 1.2; g.beginPath(); g.arc(h * 0.5, -h * 0.8, h * 0.24, 0, 7); g.stroke();
+    // face
+    g.fillStyle = "#111";
+    g.beginPath(); g.arc(h * 0.56, -h * 0.86, h * 0.04, 0, 7); g.fill();
+    g.beginPath(); g.arc(h * 0.82, -h * 0.76, h * 0.045, 0, 7); g.fill();
+    if (dog.state !== "wild") { g.fillStyle = "#e8321e"; g.fillRect(h * 0.32, -h * 0.66, h * 0.3, h * 0.06); } // red collar once she's on your side
+    else { g.fillStyle = "#ff7aa8"; g.beginPath(); g.ellipse(h * 0.74, -h * 0.64, h * 0.05, h * 0.07, 0, 0, 7); g.fill(); } // tongue
+    g.restore();
+    // marker above the wild dog so you can find her
+    if (dog.state === "wild") {
+      const bounce = Math.sin(dog.t * 6) * 4;
+      g.fillStyle = "#ff7aa8"; g.font = "800 18px system-ui, sans-serif"; g.textAlign = "center";
+      g.fillText("▼ " + M.name, b.sx, b.fy - h - hop - 10 + bounce);
+    }
+  }
+
+  function drawBanner() {
+    const bn = S.banner; if (!bn) return;
+    const k = bn.t / bn.dur, scale = Math.min(1, bn.t * 5) * (1 + Math.max(0, 0.15 - bn.t) * 2);
+    const alpha = k > 0.8 ? (1 - k) / 0.2 : 1;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(CX, H * 0.3); ctx.scale(scale, scale);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const lines = bn.text.split("\n");
+    const size = Math.min(48, W / 9);
+    ctx.font = `900 ${size}px system-ui, sans-serif`;
+    lines.forEach((ln, i) => {
+      const y = (i - (lines.length - 1) / 2) * size * 1.1;
+      ctx.lineWidth = size * 0.18; ctx.strokeStyle = "#e8321e"; ctx.lineJoin = "round"; ctx.strokeText(ln, 0, y);
+      ctx.fillStyle = "#f7d417"; ctx.fillText(ln, 0, y);
+    });
+    ctx.restore();
+  }
+
   // ---------- Update ----------
   function update(dt) {
     S.recoil = Math.max(0, S.recoil - dt * 8);
     S.flash = Math.max(0, S.flash - dt * 14);
     S.shake = Math.max(0, S.shake - dt * 30);
     S.tracers = S.tracers.filter((t) => (t.t -= dt) > 0);
+    if (S.banner && (S.banner.t += dt) >= S.banner.dur) S.banner = null;
     S.particles = S.particles.filter((p) => {
       p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (!p.dust && !p.ring) p.vy += 600 * dt; return p.t > 0;
     });
@@ -340,6 +476,8 @@
         updateBroomBtn();
       }
       updateSweep(dt);
+      if (!S.milenaSpawned && S.score >= D.milena.appearScore) spawnDog();
+      updateDog(dt);
       if (S.reloading > 0) {
         S.reloading -= dt;
         if (S.reloading <= 0) { S.reloading = 0; S.ammo = D.weapon.magazine; }
@@ -620,6 +758,7 @@
     const sorted = S.enemies.slice().sort((a, b) => b.d - a.d);
     for (const e of sorted) drawIveta(e);
     drawBroom();
+    drawDog();
 
     // tracers
     for (const t of S.tracers) {
@@ -652,6 +791,7 @@
       ctx.fillStyle = "#fff"; ctx.font = "800 22px system-ui, sans-serif"; ctx.textAlign = "center";
       ctx.shadowColor = "#000"; ctx.shadowBlur = 6; ctx.fillText(T.broomAim, CX, H * 0.25); ctx.shadowBlur = 0;
     }
+    drawBanner();
     // reload text
     if (S.state === "playing" && S.reloading > 0) {
       ctx.fillStyle = "#fff"; ctx.font = "800 26px system-ui, sans-serif"; ctx.textAlign = "center";

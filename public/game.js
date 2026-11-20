@@ -1053,7 +1053,7 @@
 
   function start() {
     audio(); if (actx && actx.state === "suspended") actx.resume();
-    $("menu").classList.add("hidden"); $("over").classList.add("hidden");
+    ["menu", "select", "over"].forEach((id) => $(id).classList.add("hidden"));
     reset();
   }
 
@@ -1078,6 +1078,15 @@
   window.addEventListener("keydown", (ev) => { if (ev.key === "b" || ev.key === "B") toggleBroomAim(); });
   $("ammo").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); startReload(); });
   window.addEventListener("keydown", (ev) => { if (ev.key === "r" || ev.key === "R") startReload(); });
+  // title screen -> character select -> game
+  function showSelect() {
+    ["menu", "over"].forEach((id) => $(id).classList.add("hidden"));
+    $("select").classList.remove("hidden");
+    audio(); if (actx && actx.state === "suspended") actx.resume();
+    renderBoard($("lbMenu"));
+  }
+  $("menu").addEventListener("click", (ev) => { if (ev.target.id !== "installBtn") showSelect(); });
+  $("changeBtn").addEventListener("click", showSelect);
   $("startBtn").addEventListener("click", start);
   $("againBtn").addEventListener("click", start);
   $("nameForm").addEventListener("submit", (ev) => {
@@ -1122,6 +1131,8 @@
   $("title").textContent = D.title;
   $("subtitle").textContent = T.subtitle;
   $("startBtn").textContent = T.tapToStart;
+  $("playBtn").textContent = T.tapToPlay;
+  $("changeBtn").textContent = T.changeCharacter;
   $("installBtn").textContent = T.install;
   $("overTitle").textContent = T.gameOver;
   $("againBtn").textContent = T.playAgain;

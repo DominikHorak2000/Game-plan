@@ -50,3 +50,7 @@ button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 #8f1a0f; }
 .char-card.selected { border-color: #f7d417; background: #e8321e55; transform: scale(1.04); }
 .char-card.selected img { border-color: #f7d417; }
 .char-title { margin: 8px 0 0; font-size: 18px; color: #f7d417; }
+
+#menu { cursor: pointer; gap: 28px; }
+#menu h1 { font-size: clamp(44px, 14vw, 84px); line-height: 1; }
+#select { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top) + 32px); }

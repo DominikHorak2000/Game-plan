@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Viktor vs. the Horde</title>
+  <title>Viktor Shooter</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -28,11 +28,15 @@
 
   <div id="menu" class="overlay">
     <h1 id="title"></h1>
-    <p id="subtitle"></p>
+    <button id="playBtn" class="big"></button>
+    <button id="installBtn" class="hidden"></button>
+  </div>
+
+  <div id="select" class="overlay hidden">
     <h2 id="charTitle" class="char-title"></h2>
+    <p id="subtitle"></p>
     <div id="charSelect"></div>
     <button id="startBtn" class="big"></button>
-    <button id="installBtn" class="hidden"></button>
     <h2 class="lb-title"></h2>
     <ol id="lbMenu" class="lb"></ol>
   </div>
@@ -47,6 +51,7 @@
     </form>
     <p id="saveMsg"></p>
     <button id="againBtn" class="big"></button>
+    <button id="changeBtn"></button>
     <h2 class="lb-title"></h2>
     <ol id="lbOver" class="lb"></ol>
   </div>

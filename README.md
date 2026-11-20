@@ -1,4 +1,4 @@
-# Viktor vs. the Horde
+# Viktor Shooter
 
 A mobile third-person survival shooter that runs in the browser and installs like an app (PWA).
 

@@ -4,7 +4,7 @@
  */
 window.GAME_DATA = {
   version: "1.0.0",
-  title: "Viktor vs. the Horde",
+  title: "Viktor Shooter",
 
   // ---- Playable characters (picked on the character select screen) ----
   // Each character has its own look ("hero"), its own gun ("weapon") and which abilities it gets.
@@ -174,7 +174,9 @@ window.GAME_DATA = {
 
   // ---- Texts ----
   text: {
-    tapToStart: "Tap to start",
+    tapToPlay: "Tap to play",
+    tapToStart: "Start game",
+    changeCharacter: "Change character",
     subtitle: "Tap the screen to shoot. Survive as long as you can!",
     reloading: "RELOADING…",
     gameOver: "GAME OVER",

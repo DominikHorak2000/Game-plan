@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#e8321e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Viktor vs. the Horde</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="hud-left">
+      <div id="score">0</div>
+      <div id="kills">Kills 0</div>
+    </div>
+    <button id="ammo" aria-label="Reload"><span id="ammoText">20 / 20</span><div id="reloadBar"><i></i></div></button>
+  </div>
+
+  <div id="menu" class="overlay">
+    <h1 id="title"></h1>
+    <p id="subtitle"></p>
+    <button id="startBtn" class="big"></button>
+    <button id="installBtn" class="hidden"></button>
+    <h2 class="lb-title"></h2>
+    <ol id="lbMenu" class="lb"></ol>
+  </div>
+
+  <div id="over" class="overlay hidden">
+    <h1 id="overTitle"></h1>
+    <div id="stats"></div>
+    <form id="nameForm">
+      <input id="nameInput" maxlength="16" autocomplete="nickname">
+      <button id="submitBtn" type="submit"></button>
+    </form>
+    <p id="saveMsg"></p>
+    <button id="againBtn" class="big"></button>
+    <h2 class="lb-title"></h2>
+    <ol id="lbOver" class="lb"></ol>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

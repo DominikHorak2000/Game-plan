@@ -1,0 +1,9 @@
+{
+  "name": "viktor-vs-the-horde",
+  "version": "1.0.0",
+  "description": "Mobile third-person survival shooter (PWA) with a tiny leaderboard backend",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

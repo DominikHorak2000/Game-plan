@@ -49,7 +49,7 @@ window.GAME_DATA = {
 
   // ---- Broom ability ----
   broom: {
-    cooldown: 25,             // seconds to charge
+    cooldown: 15,             // seconds to charge
     laneWidth: 2.4,           // metres wide sweep
     length: 40,               // how far forward it sweeps
     sweepTime: 0.8,           // seconds for the broom to travel the whole lane
@@ -109,6 +109,6 @@ window.GAME_DATA = {
     saved: "Saved!",
     offline: "Offline – score saved on this device only",
     install: "Install app",
-    broomAim: "Tap where to sweep!"
+    broomAim: "Hold & drag to aim – release to sweep!"
   }
 };

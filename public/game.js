@@ -118,7 +118,7 @@
     spawnTimer: 0, spawnInterval: D.spawn.startInterval,
     aim: { x: 0, y: 0 }, recoil: 0, flash: 0,
     deathT: 0, shake: 0,
-    broomCharge: 0, broomAiming: false, broomAim: null, sweep: null
+    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null
   };
 
   function reset() {
@@ -128,7 +128,7 @@
       enemies: [], particles: [], tracers: [],
       spawnTimer: 0.5, spawnInterval: D.spawn.startInterval,
       recoil: 0, flash: 0, deathT: 0, shake: 0,
-      broomCharge: 0, broomAiming: false, broomAim: null, sweep: null
+      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null
     });
     S.aim = { x: CX, y: HORIZON };
     $("hud").classList.remove("hidden"); $("broom").classList.remove("hidden");
@@ -755,10 +755,18 @@
   // ---------- Input ----------
   canvas.addEventListener("pointerdown", (ev) => {
     ev.preventDefault();
-    if (S.broomAiming) { S.broomAim = { x: ev.clientX, y: ev.clientY }; fireBroom(ev.clientX, ev.clientY); }
+    if (S.broomAiming) { S.broomAim = { x: ev.clientX, y: ev.clientY }; S.broomHold = true; canvas.setPointerCapture?.(ev.pointerId); }
     else shoot(ev.clientX, ev.clientY);
   });
+  // broom: touch and hold to aim, drag to adjust, release to sweep
   canvas.addEventListener("pointermove", (ev) => { if (S.broomAiming) S.broomAim = { x: ev.clientX, y: ev.clientY }; });
+  const releaseBroom = (ev) => {
+    if (!S.broomHold) return;
+    S.broomHold = false;
+    if (S.broomAiming && S.state === "playing") fireBroom(ev.clientX, ev.clientY);
+  };
+  canvas.addEventListener("pointerup", releaseBroom);
+  canvas.addEventListener("pointercancel", () => { S.broomHold = false; });
   $("broom").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); ev.preventDefault(); toggleBroomAim(); });
   window.addEventListener("keydown", (ev) => { if (ev.key === "b" || ev.key === "B") toggleBroomAim(); });
   $("ammo").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); startReload(); });

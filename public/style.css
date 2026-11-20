@@ -39,3 +39,14 @@ button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 #8f1a0f; }
 #broom.ready .ico { filter: none; }
 #broom.aiming { background: #e8321e; animation: none; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 10px #f7d41755; transform: scale(1.06); } }
+
+#charSelect { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.char-card { width: 150px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 8px; border-radius: 16px;
+  background: #0008; color: #fff; border: 3px solid #fff3; font-weight: 400; transition: transform .1s; }
+.char-card img { width: 86px; height: 86px; border-radius: 50%; object-fit: cover; border: 3px solid #fff6; }
+.char-card b { font-size: 17px; }
+.char-card small { font-size: 12px; opacity: .85; line-height: 1.25; }
+.char-card .stats { color: #f7d417; }
+.char-card.selected { border-color: #f7d417; background: #e8321e55; transform: scale(1.04); }
+.char-card.selected img { border-color: #f7d417; }
+.char-title { margin: 8px 0 0; font-size: 18px; color: #f7d417; }

@@ -6,20 +6,77 @@ window.GAME_DATA = {
   version: "1.0.0",
   title: "Viktor vs. the Horde",
 
-  // ---- Main character (the player) ----
-  hero: {
-    name: "Viktor",
-    photo: "viktor.jpg",      // portrait on menu/game-over, and his face when he turns around to reload
-    faceCrop: [0.22, 0.02, 0.62, 0.78], // x, y, w, h of the face inside the photo (fractions of photo width)
-    turnTime: 0.3,            // seconds to turn around at start/end of reload
-    skin: "#e8b49a",
-    hair: "#8a7d72",          // short grey-brown buzz cut
-    shirtStripes: ["#e8321e", "#f7d417"], // red / yellow rugby hoops
-    shorts: "#c41a14",
-    socks: ["#e8321e", "#f7d417"],
-    boots: "#1b1b1b",
-    deathDuration: 1.6        // seconds the death animation lasts
-  },
+  // ---- Playable characters (picked on the character select screen) ----
+  // Each character has its own look ("hero"), its own gun ("weapon") and which abilities it gets.
+  characters: [
+    {
+      id: "viktor",
+      name: "Viktor",
+      tagline: "Rifle · Broom · Milena",
+      broom: true,            // has the broom ability
+      milena: true,           // the wild Milena can appear
+      hero: {
+        name: "Viktor",
+        photo: "viktor.jpg",      // portrait on menus, and his face when he turns around to reload
+        faceCrop: [0.22, 0.02, 0.62, 0.78], // x, y, w, h of the face inside the photo (fractions of photo width)
+        turnTime: 0.3,            // seconds to turn around at start/end of reload
+        skin: "#e8b49a",
+        hair: "#8a7d72",          // short grey-brown buzz cut
+        shirtStripes: ["#e8321e", "#f7d417"], // red / yellow rugby hoops
+        sleeves: ["#f7d417", "#e8321e"],      // left, right sleeve
+        collar: "#e8321e",
+        placket: "#c41a14",
+        outfit: "polo",
+        glasses: false,
+        deathDuration: 1.6        // seconds the death animation lasts
+      },
+      weapon: {
+        name: "Rifle",
+        look: "rifle",
+        magazine: 20,
+        reloadTime: 3.0,          // seconds
+        fireCooldown: 0.12,       // seconds between shots
+        auto: false,              // false = one shot per tap
+        shotsToKill: 1,           // hits needed to take down one Iveta
+        hitPadding: 10,           // extra px around enemies that still counts as a hit
+        splashRadius: 1.0         // metres: Ivetas this close to the one you hit also go down (0 = single target)
+      }
+    },
+    {
+      id: "petr",
+      name: "Petr Burget",
+      tagline: "Money gun · hold to spray",
+      broom: false,
+      milena: false,
+      hero: {
+        name: "Petr",
+        photo: "petr.jpg",
+        faceCrop: [0.16, 0.0, 0.69, 0.87],
+        turnTime: 0.3,
+        skin: "#eabba0",
+        hair: "#7a5c45",          // short brown
+        shirtStripes: ["#1f2a44", "#1f2a44"], // navy suit jacket
+        sleeves: ["#1f2a44", "#1f2a44"],
+        collar: "#cfe0f5",        // light blue shirt collar
+        placket: "#cfe0f5",
+        outfit: "suit",
+        glasses: true,
+        deathDuration: 1.6
+      },
+      weapon: {
+        name: "Money gun",
+        look: "money",
+        magazine: 60,
+        reloadTime: 3.0,
+        fireCooldown: 0.08,       // hold the screen to keep firing
+        auto: true,               // true = hold to fire
+        shotsToKill: 2,
+        hitPadding: 10,
+        splashRadius: 0
+      }
+    }
+  ],
+  defaultCharacter: "viktor",
 
   // ---- Enemies ----
   enemy: {
@@ -35,16 +92,6 @@ window.GAME_DATA = {
     speedGrowth: 0.05,        // extra speed per second survived
     maxSpeed: 7.5,
     deathDuration: 0.9
-  },
-
-  // ---- Weapon ----
-  weapon: {
-    name: "Rifle",
-    magazine: 20,
-    reloadTime: 3.0,          // seconds
-    fireCooldown: 0.12,       // seconds between shots
-    hitPadding: 10,           // extra px around enemies that still counts as a hit
-    splashRadius: 1.0         // metres: Ivetas this close to the one you hit also go down (0 = single target)
   },
 
   // ---- Broom ability ----
@@ -122,6 +169,7 @@ window.GAME_DATA = {
     playAgain: "Play again",
     leaderboard: "Leaderboard",
     enterName: "Your name",
+    chooseCharacter: "Choose your fighter",
     submit: "Save score",
     saved: "Saved!",
     offline: "Offline – score saved on this device only",

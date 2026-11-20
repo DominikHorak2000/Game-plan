@@ -1,6 +1,18 @@
 (() => {
   "use strict";
   const D = window.GAME_DATA;
+  // ---------- Characters ----------
+  let CHAR = D.characters[0];
+  const heroImgs = {};
+  D.characters.forEach((c) => { const im = new Image(); im.src = c.hero.photo; heroImgs[c.id] = im; });
+  function setCharacter(id) {
+    CHAR = D.characters.find((c) => c.id === id) || D.characters[0];
+    D.hero = CHAR.hero; D.weapon = CHAR.weapon;
+    try { localStorage.setItem("viktor-char", CHAR.id); } catch (e) {}
+  }
+  let savedChar = D.defaultCharacter;
+  try { savedChar = localStorage.getItem("viktor-char") || savedChar; } catch (e) {}
+  setCharacter(savedChar);
   const T = D.text;
   const $ = (id) => document.getElementById(id);
 
@@ -100,7 +112,7 @@
     o.connect(gn).connect(a.destination); o.start(); o.stop(a.currentTime + dur);
   }
   const sfx = {
-    shot: () => noise(0.18, 2200, 0.5),
+    shot: () => D.weapon.look === "money" ? (noise(0.05, 4000, 0.22), tone(1400, 900, 0.04, 0.03, "triangle")) : noise(0.18, 2200, 0.5),
     empty: () => tone(900, 700, 0.05, 0.08),
     reload: () => { tone(300, 200, 0.08, 0.1); setTimeout(() => tone(500, 400, 0.08, 0.1), 2700); },
     bark: () => { tone(700, 380, 0.09, 0.15, "square"); setTimeout(() => tone(760, 420, 0.1, 0.15, "square"), 130); },
@@ -134,7 +146,7 @@
       dog: null, milenaSpawned: false, banner: null
     });
     S.aim = { x: CX, y: HORIZON };
-    $("hud").classList.remove("hidden"); $("broom").classList.remove("hidden");
+    $("hud").classList.remove("hidden"); $("broom").classList.toggle("hidden", !CHAR.broom); S.hold = null;
     updateHud(); updateBroomBtn();
   }
 
@@ -148,7 +160,7 @@
         lane: (Math.random() * 2 - 1) * 0.9,
         d: sp.spawnDepth + Math.random() * 6,
         speed: speed * (0.85 + Math.random() * 0.3),
-        hp: en.hp, phase: Math.random() * 6.28,
+        hp: en.hp * (D.weapon.shotsToKill || 1), phase: Math.random() * 6.28,
         hitT: 0, dead: false, deadT: 0, fallDir: Math.random() < 0.5 ? -1 : 1
       });
     }
@@ -206,18 +218,23 @@
         if (!target || e.d < target.d) target = e;
       }
     }
-    const g = heroGeom();
-    S.tracers.push({ x1: g.muzzle.x, y1: g.muzzle.y, x2: px, y2: py, t: 0.09 });
+    const g = heroGeom(), money = D.weapon.look === "money";
+    if (money) {
+      // a banknote flies from the gun to the tap point
+      const ft = 0.14;
+      S.particles.push({ x: g.muzzle.x, y: g.muzzle.y, vx: (px - g.muzzle.x) / ft, vy: (py - g.muzzle.y) / ft, t: ft, c: "#7bc67e", r: 12, bill: true, rot: Math.random() * 6, life: ft });
+    } else S.tracers.push({ x1: g.muzzle.x, y1: g.muzzle.y, x2: px, y2: py, t: 0.09 });
+    const spark = money ? "#9be7a1" : "#ffe27a";
     if (target) {
       // splash: everyone standing within splashRadius (world metres) of the target is hit too
       const R = D.weapon.splashRadius, tx = enemyX(target);
       const victims = S.enemies.filter((e) => !e.dead && Math.hypot(enemyX(e) - tx, e.d - target.d) <= R);
       sfx.hit();
-      S.particles.push({ x: px, y: py, vx: 0, vy: 0, t: 0.25, c: "#ffe27a", r: sizeAt(R, target.d), ring: true });
+      if (R > 0) S.particles.push({ x: px, y: py, vx: 0, vy: 0, t: 0.25, c: "#ffe27a", r: sizeAt(R, target.d), ring: true });
       for (const v of victims) {
         const vb = enemyBox(v), hx = v === target ? px : vb.sx, hy = v === target ? py : vb.fy - vb.h * 0.6;
         v.hp--; v.hitT = 0.12;
-        for (let i = 0; i < 8; i++) S.particles.push({ x: hx, y: hy, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.8) * 300, t: 0.4, c: "#ffe27a", r: 3 });
+        for (let i = 0; i < 8; i++) S.particles.push({ x: hx, y: hy, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.8) * 300, t: 0.4, c: spark, r: 3 });
         if (v.hp <= 0) {
           v.dead = true; S.kills++;
           for (let i = 0; i < 6; i++) S.particles.push({ x: hx, y: hy, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 200, t: 0.8, c: "#fff", r: 4, star: true });
@@ -474,20 +491,21 @@
     S.tracers = S.tracers.filter((t) => (t.t -= dt) > 0);
     if (S.banner && (S.banner.t += dt) >= S.banner.dur) S.banner = null;
     S.particles = S.particles.filter((p) => {
-      p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (!p.dust && !p.ring) p.vy += 600 * dt; return p.t > 0;
+      p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (!p.dust && !p.ring && !p.bill) p.vy += 600 * dt; if (p.bill) p.rot += dt * 14; return p.t > 0;
     });
 
     if (S.state === "playing") {
       S.time += dt;
       S.score = Math.floor(S.time * D.score.perSecond + S.kills * D.score.perKill);
       S.cooldown = Math.max(0, S.cooldown - dt);
-      if (!S.sweep && !S.broomAiming && S.broomCharge < D.broom.cooldown) {
+      if (S.hold && D.weapon.auto && S.cooldown <= 0 && S.reloading <= 0) shoot(S.hold.x, S.hold.y);
+      if (CHAR.broom && !S.sweep && !S.broomAiming && S.broomCharge < D.broom.cooldown) {
         S.broomCharge = Math.min(D.broom.cooldown, S.broomCharge + dt);
         if (broomReady()) sfx.ready();
         updateBroomBtn();
       }
       updateSweep(dt);
-      if (!S.milenaSpawned && S.score >= D.milena.appearScore) spawnDog();
+      if (CHAR.milena && !S.milenaSpawned && S.score >= D.milena.appearScore) spawnDog();
       updateDog(dt);
       if (S.reloading > 0) {
         S.reloading -= dt;
@@ -590,8 +608,6 @@
     g.restore();
   }
 
-  const heroImg = new Image();
-  heroImg.src = D.hero.photo;
 
   function turnAmount() {
     if (S.reloading <= 0 || S.state !== "playing") return 0;
@@ -618,21 +634,40 @@
     sh.addColorStop(0, "#0003"); sh.addColorStop(0.5, "#0000"); sh.addColorStop(1, "#0004");
     g.fillStyle = sh; g.fillRect(CX - tw, y0 - u * 0.1, tw * 2, H);
     g.restore();
-    // neck + collar (polo with placket)
+    // neck + collar
     g.fillStyle = hero.skin; g.fillRect(CX - u * 0.06, y0 - u * 0.1, u * 0.12, u * 0.09);
-    g.fillStyle = hero.shirtStripes[0];
-    g.beginPath(); g.moveTo(CX - u * 0.13, y0 - u * 0.05); g.lineTo(CX, y0 + u * 0.08); g.lineTo(CX - u * 0.03, y0 - u * 0.04); g.closePath(); g.fill();
-    g.beginPath(); g.moveTo(CX + u * 0.13, y0 - u * 0.05); g.lineTo(CX, y0 + u * 0.08); g.lineTo(CX + u * 0.03, y0 - u * 0.04); g.closePath(); g.fill();
-    g.fillStyle = "#c41a14"; g.fillRect(CX - u * 0.015, y0 + u * 0.02, u * 0.03, u * 0.14);
+    if (hero.outfit === "suit") {
+      // light-blue open-collar shirt between navy lapels
+      g.fillStyle = hero.collar;
+      g.beginPath(); g.moveTo(CX - u * 0.1, y0 - u * 0.05); g.lineTo(CX + u * 0.1, y0 - u * 0.05); g.lineTo(CX + u * 0.06, y0 + u * 0.45); g.lineTo(CX - u * 0.06, y0 + u * 0.45); g.closePath(); g.fill();
+      g.fillStyle = hero.skin; g.beginPath(); g.moveTo(CX - u * 0.05, y0 - u * 0.05); g.lineTo(CX + u * 0.05, y0 - u * 0.05); g.lineTo(CX, y0 + u * 0.05); g.closePath(); g.fill();
+      g.fillStyle = "#16203a";
+      g.beginPath(); g.moveTo(CX - u * 0.15, y0 - u * 0.04); g.lineTo(CX - u * 0.04, y0 + u * 0.1); g.lineTo(CX - u * 0.06, y0 + u * 0.5); g.lineTo(CX - u * 0.2, y0 + u * 0.1); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(CX + u * 0.15, y0 - u * 0.04); g.lineTo(CX + u * 0.04, y0 + u * 0.1); g.lineTo(CX + u * 0.06, y0 + u * 0.5); g.lineTo(CX + u * 0.2, y0 + u * 0.1); g.closePath(); g.fill();
+    } else {
+      g.fillStyle = hero.collar;
+      g.beginPath(); g.moveTo(CX - u * 0.13, y0 - u * 0.05); g.lineTo(CX, y0 + u * 0.08); g.lineTo(CX - u * 0.03, y0 - u * 0.04); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(CX + u * 0.13, y0 - u * 0.05); g.lineTo(CX, y0 + u * 0.08); g.lineTo(CX + u * 0.03, y0 - u * 0.04); g.closePath(); g.fill();
+      g.fillStyle = hero.placket; g.fillRect(CX - u * 0.015, y0 + u * 0.02, u * 0.03, u * 0.14);
+    }
 
     // rifle across the chest, magazine out → in animation
     const prog = 1 - S.reloading / D.weapon.reloadTime;
     g.save(); g.translate(CX, y0 + u * 0.3); g.rotate(-0.45);
-    g.fillStyle = "#5a3a22"; roundRect(g, -u * 0.34, -u * 0.035, u * 0.18, u * 0.07, u * 0.015); g.fill();
-    g.fillStyle = "#2b2b2e"; roundRect(g, -u * 0.17, -u * 0.04, u * 0.3, u * 0.08, u * 0.015); g.fill();
-    g.fillStyle = "#111"; g.fillRect(u * 0.12, -u * 0.012, u * 0.24, u * 0.024);
     const magDrop = prog < 0.5 ? Math.min(1, prog * 4) : Math.max(0, 1 - (prog - 0.5) * 4);
-    g.fillStyle = "#1d1d20"; roundRect(g, -u * 0.04, u * 0.03 + magDrop * u * 0.12, u * 0.06, u * 0.12, u * 0.01); g.fill();
+    if (D.weapon.look === "money") {
+      // money gun: green body, gold flared barrel, a wad of cash as the "magazine"
+      g.fillStyle = "#1f7a3a"; roundRect(g, -u * 0.22, -u * 0.06, u * 0.32, u * 0.12, u * 0.03); g.fill();
+      g.fillStyle = "#e0b43a"; g.beginPath(); g.moveTo(u * 0.1, -u * 0.04); g.lineTo(u * 0.26, -u * 0.07); g.lineTo(u * 0.26, u * 0.07); g.lineTo(u * 0.1, u * 0.04); g.closePath(); g.fill();
+      g.fillStyle = "#e0b43a"; g.fillRect(-u * 0.22, -u * 0.012, u * 0.32, u * 0.024);
+      g.fillStyle = "#7bc67e"; roundRect(g, -u * 0.08, u * 0.05 + magDrop * u * 0.12, u * 0.12, u * 0.07, u * 0.008); g.fill();
+      g.strokeStyle = "#2e7d32"; g.lineWidth = 1; g.strokeRect(-u * 0.08, u * 0.05 + magDrop * u * 0.12, u * 0.12, u * 0.07);
+    } else {
+      g.fillStyle = "#5a3a22"; roundRect(g, -u * 0.34, -u * 0.035, u * 0.18, u * 0.07, u * 0.015); g.fill();
+      g.fillStyle = "#2b2b2e"; roundRect(g, -u * 0.17, -u * 0.04, u * 0.3, u * 0.08, u * 0.015); g.fill();
+      g.fillStyle = "#111"; g.fillRect(u * 0.12, -u * 0.012, u * 0.24, u * 0.024);
+      g.fillStyle = "#1d1d20"; roundRect(g, -u * 0.04, u * 0.03 + magDrop * u * 0.12, u * 0.06, u * 0.12, u * 0.01); g.fill();
+    }
     g.restore();
     // arms: right hand on grip, left hand on the magazine
     const arm = (sx, sy, ex, ey, c) => {
@@ -641,13 +676,14 @@
       g.strokeStyle = c; g.lineWidth = u * 0.11; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + (ex - sx) * 0.35, sy + (ey - sy) * 0.35); g.stroke();
     };
     const magY = y0 + u * 0.36 + magDrop * u * 0.1;
-    arm(CX - tw * 0.42, y0 + u * 0.05, CX - u * 0.12, y0 + u * 0.38, hero.shirtStripes[1]);
-    arm(CX + tw * 0.42, y0 + u * 0.05, CX + u * 0.02, magY, hero.shirtStripes[0]);
+    arm(CX - tw * 0.42, y0 + u * 0.05, CX - u * 0.12, y0 + u * 0.38, hero.sleeves[0]);
+    arm(CX + tw * 0.42, y0 + u * 0.05, CX + u * 0.02, magY, hero.sleeves[1]);
 
     // head: the real photo
     const hx = CX, hy = y0 - u * 0.22, rx = u * 0.15, ry = u * 0.185;
     g.save();
     g.beginPath(); g.ellipse(hx, hy, rx, ry, 0, 0, 7); g.clip();
+    const heroImg = heroImgs[CHAR.id];
     if (heroImg.complete && heroImg.naturalWidth) {
       const [sx, sy, sw, sh2] = hero.faceCrop.map((v) => v * heroImg.naturalWidth);
       g.drawImage(heroImg, sx, sy, sw, sh2, hx - rx, hy - ry, rx * 2, ry * 2);
@@ -697,7 +733,7 @@
     g.fillStyle = sh; g.fillRect(CX - tw, y0 - u * 0.1, tw * 2, H);
     g.restore();
     // collar
-    g.fillStyle = hero.shirtStripes[0];
+    g.fillStyle = hero.collar;
     roundRect(g, CX - u * 0.12, y0 - u * 0.06, u * 0.24, u * 0.06, u * 0.02); g.fill();
 
     // arms helper
@@ -709,19 +745,27 @@
       g.strokeStyle = sleeveColor; g.lineWidth = u * 0.11;
       g.beginPath(); g.moveTo(from.x, from.y); g.lineTo(sx, sy); g.stroke();
     };
-    arm(lsh, fore, hero.shirtStripes[1]);
+    arm(lsh, fore, hero.sleeves[0]);
 
     // rifle (tapers with perspective)
     const px = -G.dir.y, py = G.dir.x;
     const pt = (t, w) => [G.stock.x + G.dir.x * G.gunLen * t + px * w, G.stock.y + G.dir.y * G.gunLen * t + py * w];
     const poly = (pts, c) => { g.fillStyle = c; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
-    poly([pt(0, -u * 0.045), pt(0, u * 0.045), pt(0.3, u * 0.03), pt(0.3, -u * 0.03)], "#5a3a22");           // stock
-    poly([pt(0.25, -u * 0.035), pt(0.25, u * 0.035), pt(0.72, u * 0.02), pt(0.72, -u * 0.02)], "#2b2b2e");    // receiver
-    poly([pt(0.38, u * 0.02), pt(0.36, u * 0.075), pt(0.44, u * 0.07), pt(0.46, u * 0.02)], "#1d1d20");     // magazine
-    poly([pt(0.7, -u * 0.009), pt(0.7, u * 0.009), pt(1, u * 0.007), pt(1, -u * 0.007)], "#111");             // barrel
-    poly([pt(0.4, -u * 0.035), pt(0.4, -u * 0.05), pt(0.55, -u * 0.045), pt(0.55, -u * 0.03)], "#444");     // sight rail
+    if (D.weapon.look === "money") {
+      poly([pt(0, -u * 0.05), pt(0, u * 0.05), pt(0.7, u * 0.035), pt(0.7, -u * 0.035)], "#1f7a3a");           // body
+      poly([pt(0.05, -u * 0.012), pt(0.05, u * 0.012), pt(0.7, u * 0.01), pt(0.7, -u * 0.01)], "#e0b43a");      // gold stripe
+      poly([pt(0.68, -u * 0.03), pt(0.68, u * 0.03), pt(1, u * 0.05), pt(1, -u * 0.05)], "#e0b43a");          // flared barrel
+      poly([pt(0.3, -u * 0.035), pt(0.3, -u * 0.075), pt(0.55, -u * 0.065), pt(0.55, -u * 0.03)], "#7bc67e");  // cash stack on top
+      poly([pt(0.33, -u * 0.05), pt(0.33, -u * 0.055), pt(0.52, -u * 0.05), pt(0.52, -u * 0.045)], "#2e7d32");
+    } else {
+      poly([pt(0, -u * 0.045), pt(0, u * 0.045), pt(0.3, u * 0.03), pt(0.3, -u * 0.03)], "#5a3a22");           // stock
+      poly([pt(0.25, -u * 0.035), pt(0.25, u * 0.035), pt(0.72, u * 0.02), pt(0.72, -u * 0.02)], "#2b2b2e");    // receiver
+      poly([pt(0.38, u * 0.02), pt(0.36, u * 0.075), pt(0.44, u * 0.07), pt(0.46, u * 0.02)], "#1d1d20");     // magazine
+      poly([pt(0.7, -u * 0.009), pt(0.7, u * 0.009), pt(1, u * 0.007), pt(1, -u * 0.007)], "#111");             // barrel
+      poly([pt(0.4, -u * 0.035), pt(0.4, -u * 0.05), pt(0.55, -u * 0.045), pt(0.55, -u * 0.03)], "#444");     // sight rail
+    }
 
-    arm(rsh, grip, hero.shirtStripes[0]);
+    arm(rsh, grip, hero.sleeves[1]);
 
     // neck & head (seen from behind)
     g.fillStyle = hero.skin;
@@ -739,13 +783,19 @@
       g.fillRect(CX + Math.cos(a) * u * 0.11 * r, y0 - u * 0.25 + Math.sin(a) * u * 0.12 * r, 2, 2);
     }
     g.restore();
+    if (hero.glasses) {
+      // glasses temples visible from behind, hooked over the ears
+      g.strokeStyle = "#222"; g.lineWidth = u * 0.012; g.lineCap = "round";
+      [-1, 1].forEach((sd) => { g.beginPath(); g.moveTo(CX + sd * u * 0.135, y0 - u * 0.24); g.quadraticCurveTo(CX + sd * u * 0.13, y0 - u * 0.2, CX + sd * u * 0.11, y0 - u * 0.18); g.stroke(); });
+    }
 
 
     // muzzle flash
     if (S.flash > 0) {
       const r = u * 0.09 * (0.6 + S.flash);
       const grd = g.createRadialGradient(G.muzzle.x, G.muzzle.y, 0, G.muzzle.x, G.muzzle.y, r);
-      grd.addColorStop(0, "#fffbe0"); grd.addColorStop(0.4, "#ffd23a"); grd.addColorStop(1, "#ff6a0000");
+      const money = D.weapon.look === "money";
+      grd.addColorStop(0, "#fffbe0"); grd.addColorStop(0.4, money ? "#9be7a1" : "#ffd23a"); grd.addColorStop(1, money ? "#2e7d3200" : "#ff6a0000");
       g.fillStyle = grd; g.beginPath(); g.arc(G.muzzle.x, G.muzzle.y, r, 0, 7); g.fill();
       g.fillStyle = "#fff6";
       for (let i = 0; i < 5; i++) {
@@ -780,7 +830,12 @@
     for (const p of S.particles) {
       ctx.globalAlpha = Math.min(1, p.t * 3);
       ctx.fillStyle = p.c;
-      if (p.ring) { ctx.strokeStyle = p.c; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * (1.2 - p.t * 0.8), p.r * 0.5 * (1.2 - p.t * 0.8), 0, 0, 7); ctx.stroke(); }
+      if (p.bill) {
+        const k = p.t / p.life, w = p.r * (0.4 + 0.6 * k);
+        ctx.globalAlpha = 1; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = "#7bc67e"; ctx.fillRect(-w, -w * 0.5, w * 2, w); ctx.strokeStyle = "#2e7d32"; ctx.lineWidth = 1; ctx.strokeRect(-w, -w * 0.5, w * 2, w);
+        ctx.fillStyle = "#2e7d32"; ctx.beginPath(); ctx.arc(0, 0, w * 0.28, 0, 7); ctx.fill(); ctx.restore();
+      } else if (p.ring) { ctx.strokeStyle = p.c; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * (1.2 - p.t * 0.8), p.r * 0.5 * (1.2 - p.t * 0.8), 0, 0, 7); ctx.stroke(); }
       else if (p.star) { drawStar(p.x, p.y, p.r * 1.6); }
       else { ctx.beginPath(); ctx.arc(p.x, p.y, p.dust ? p.r * (1.5 - p.t) * 2 : p.r, 0, 7); ctx.fill(); }
     }
@@ -867,7 +922,7 @@
     el.innerHTML = "";
     list.forEach((s, i) => {
       const li = document.createElement("li");
-      const a = document.createElement("span"); a.textContent = `${i + 1}. ${s.name}`;
+      const a = document.createElement("span"); a.textContent = `${i + 1}. ${s.name}${s.hero ? " · " + s.hero : ""}`;
       const b = document.createElement("span"); b.textContent = s.score;
       li.append(a, b); el.append(li);
     });
@@ -875,7 +930,7 @@
   }
 
   async function submitScore(name) {
-    const entry = { name: name.slice(0, 16) || "Anon", score: S.score, kills: S.kills, time: Math.round(S.time) };
+    const entry = { name: name.slice(0, 16) || "Anon", hero: CHAR.name, score: S.score, kills: S.kills, time: Math.round(S.time) };
     saveLocal(entry);
     try {
       const r = await fetch(D.api.scores, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry) });
@@ -907,8 +962,10 @@
   canvas.addEventListener("pointerdown", (ev) => {
     ev.preventDefault();
     if (S.broomAiming) { S.broomAim = { x: ev.clientX, y: ev.clientY }; S.broomHold = true; canvas.setPointerCapture?.(ev.pointerId); }
-    else shoot(ev.clientX, ev.clientY);
+    else { shoot(ev.clientX, ev.clientY); if (D.weapon.auto) S.hold = { x: ev.clientX, y: ev.clientY }; }
   });
+  canvas.addEventListener("pointermove", (ev) => { if (S.hold) S.hold = { x: ev.clientX, y: ev.clientY }; });
+  ["pointerup", "pointercancel", "pointerleave"].forEach((t) => canvas.addEventListener(t, () => { S.hold = null; }));
   // broom: touch and hold to aim, drag to adjust, release to sweep
   canvas.addEventListener("pointermove", (ev) => { if (S.broomAiming) S.broomAim = { x: ev.clientX, y: ev.clientY }; });
   const releaseBroom = (ev) => {
@@ -942,7 +999,26 @@
   if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 
   // ---------- Texts ----------
-  document.querySelectorAll(".portrait").forEach((el) => { el.src = D.hero.photo; el.alt = D.hero.name; });
+  function refreshPortraits() {
+    document.querySelectorAll(".portrait").forEach((el) => { el.src = D.hero.photo; el.alt = CHAR.name; });
+    document.querySelectorAll(".char-card").forEach((el) => el.classList.toggle("selected", el.dataset.id === CHAR.id));
+  }
+  // character select cards
+  const cs = $("charSelect");
+  D.characters.forEach((c) => {
+    const b = document.createElement("button");
+    b.className = "char-card"; b.dataset.id = c.id; b.type = "button";
+    const img = document.createElement("img"); img.src = c.hero.photo; img.alt = c.name;
+    const nm = document.createElement("b"); nm.textContent = c.name;
+    const tg = document.createElement("small"); tg.textContent = c.tagline;
+    const st = document.createElement("small"); st.className = "stats";
+    st.textContent = `${c.weapon.magazine} ammo · ${c.weapon.auto ? "hold to fire" : "tap to fire"} · ${c.weapon.shotsToKill} hit${c.weapon.shotsToKill > 1 ? "s" : ""}/kill`;
+    b.append(img, nm, tg, st);
+    b.addEventListener("click", () => { setCharacter(c.id); refreshPortraits(); });
+    cs.append(b);
+  });
+  $("charTitle").textContent = T.chooseCharacter;
+  refreshPortraits();
   document.title = D.title;
   $("title").textContent = D.title;
   $("subtitle").textContent = T.subtitle;

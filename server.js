@@ -51,12 +51,12 @@ async function handleApi(req, res, url) {
 
   if (req.method === "GET") {
     const limit = Math.min(100, num(url.searchParams.get("limit"), 100) || 10);
-    return sendJson(res, 200, scores.slice(0, limit).map(({ name, score, kills, time }) => ({ name, score, kills, time })));
+    return sendJson(res, 200, scores.slice(0, limit).map(({ name, hero, score, kills, time }) => ({ name, hero, score, kills, time })));
   }
   if (req.method === "POST") {
     try {
       const b = JSON.parse(await readBody(req));
-      const entry = { name: clean(b.name), score: num(b.score, 1e7), kills: num(b.kills, 1e6), time: num(b.time, 1e6), at: new Date().toISOString() };
+      const entry = { name: clean(b.name), hero: clean(b.hero || "Viktor"), score: num(b.score, 1e7), kills: num(b.kills, 1e6), time: num(b.time, 1e6), at: new Date().toISOString() };
       scores.push(entry);
       scores.sort((a, c) => c.score - a.score);
       scores = scores.slice(0, MAX_STORED);

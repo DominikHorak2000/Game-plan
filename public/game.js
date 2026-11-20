@@ -774,6 +774,17 @@
     } else { g.fillStyle = hero.skin; g.fillRect(hx - rx, hy - ry, rx * 2, ry * 2); }
     g.restore();
     g.strokeStyle = "#0004"; g.lineWidth = 2; g.beginPath(); g.ellipse(hx, hy, rx, ry, 0, 0, 7); g.stroke();
+    if (hero.hat === "tophat") drawTopHat(hx, hy - ry * 0.78, rx * 1.2);
+  }
+
+  // top hat (worn during Petr's Boss mode); cx/brimY = where the brim sits, w = head width
+  function drawTopHat(cx, brimY, w) {
+    const g = ctx;
+    g.fillStyle = "#151515";
+    roundRect(g, cx - w * 0.62, brimY - w * 1.15, w * 1.24, w * 1.15, w * 0.08); g.fill();   // crown
+    g.fillStyle = "#b3261e"; g.fillRect(cx - w * 0.62, brimY - w * 0.32, w * 1.24, w * 0.18); // band
+    g.fillStyle = "#151515"; g.beginPath(); g.ellipse(cx, brimY, w * 0.95, w * 0.17, 0, 0, 7); g.fill(); // brim
+    g.fillStyle = "#ffffff22"; g.fillRect(cx - w * 0.5, brimY - w * 1.1, w * 0.12, w * 0.75);  // shine
   }
 
   function drawViktor() {
@@ -872,6 +883,7 @@
       g.strokeStyle = "#222"; g.lineWidth = u * 0.012; g.lineCap = "round";
       [-1, 1].forEach((sd) => { g.beginPath(); g.moveTo(CX + sd * u * 0.135, y0 - u * 0.24); g.quadraticCurveTo(CX + sd * u * 0.13, y0 - u * 0.2, CX + sd * u * 0.11, y0 - u * 0.18); g.stroke(); });
     }
+    if (hero.hat === "tophat") drawTopHat(CX, y0 - u * 0.31, u * 0.18);
 
 
     // muzzle flash

@@ -49,11 +49,8 @@ window.GAME_DATA = {
       broom: false,
       milena: false,
       nuke: true,             // has the Boss mode ability (see "nuke" below)
-      powerHero: {            // outfit while Boss mode is active
-        shirtStripes: ["#d4a93a", "#c99a2e"], // gold suit
-        sleeves: ["#d4a93a", "#d4a93a"],
-        collar: "#111111",
-        placket: "#111111"
+      powerHero: {            // look changes while Boss mode is active
+        hat: "tophat"
       },
       hero: {
         name: "Petr",
@@ -73,7 +70,7 @@ window.GAME_DATA = {
       weapon: {
         name: "Money gun",
         look: "money",
-        magazine: 60,
+        magazine: 40,
         reloadTime: 3.0,
         fireCooldown: 0.08,       // hold the screen to keep firing
         auto: true,               // true = hold to fire

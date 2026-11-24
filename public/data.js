@@ -113,11 +113,13 @@ window.GAME_DATA = {
   tractor: {
     cooldown: 30,             // seconds to charge
     duration: 10,             // seconds in the tractor
-    speed: 9,                 // metres / second
-    turnRate: 2.4,            // how fast it turns while you hold left/right
+    speed: 10,                // top speed, metres / second
+    turnRate: 5,              // how fast it turns towards the joystick direction
+    joyRadius: 60,            // joystick size in pixels
+    size: 1.9,                // how big the tractor is drawn (metres)
     hitRadius: 1.6,           // metres: Ivetas this close get run over
-    startDepth: 6,
-    minDepth: 5, maxDepth: 34, maxX: 9  // field boundaries (Ivetas wait at minDepth while you drive)
+    startDepth: 5,
+    minDepth: 3.2, maxDepth: 34, maxX: 9  // field boundaries
   },
 
   // ---- Petr's Boss mode: infinite ammo + nukes ----
@@ -125,7 +127,7 @@ window.GAME_DATA = {
     cooldown: 18,             // seconds to charge
     duration: 8,              // seconds Boss mode lasts
     interval: 0.9,            // average seconds between nukes
-    radius: 7,                // metres: every Iveta this close to the impact goes down
+    radius: 6,                // metres: every Iveta this close to the impact goes down
     fallTime: 1.0,            // seconds a nuke takes to fall
     depth: [8, 32],           // where on the field they land
     spreadX: 7
@@ -208,7 +210,7 @@ window.GAME_DATA = {
     powerOn: "Burget\nspecial spell!",
     tractorOn: "TRAKTOR TIME!",
     tractorOff: "Ivetas retreat!",
-    tractorHint: "Hold left / right to steer",
+    tractorHint: "Touch & drag to drive – Ivetas can still get you!",
     broomAim: "Hold & drag to aim – release to sweep!"
   }
 };

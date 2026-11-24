@@ -135,7 +135,7 @@
     spawnTimer: 0, spawnInterval: D.spawn.startInterval,
     aim: { x: 0, y: 0 }, recoil: 0, flash: 0,
     deathT: 0, shake: 0,
-    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, steer: 0,
+    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, joy: null,
       dog: null, milenaSpawned: false, banner: null
   };
 
@@ -146,7 +146,7 @@
       enemies: [], particles: [], tracers: [],
       spawnTimer: 0.5, spawnInterval: D.spawn.startInterval,
       recoil: 0, flash: 0, deathT: 0, shake: 0,
-      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, steer: 0,
+      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, joy: null,
       dog: null, milenaSpawned: false, banner: null
     });
     S.aim = { x: CX, y: HORIZON };
@@ -574,13 +574,13 @@
   function activateTractor() {
     const T2 = D.tractor;
     if (!CHAR.tractor || S.state !== "playing" || S.tractor || S.tractorCharge < T2.cooldown || S.broomAiming || S.sweep) return;
-    S.tractorCharge = 0; S.hold = null; S.steer = 0;
-    S.tractor = { t: T2.duration, x: 0, d: T2.startDepth, h: 0, dist: 0 };
+    S.tractorCharge = 0; S.hold = null; S.joy = null;
+    S.tractor = { t: T2.duration, x: 0, d: T2.startDepth, h: 0, v: 0, dist: 0 };
     showBanner(D.text.tractorOn, 1.8); sfx.horn();
     updateTractorBtn();
   }
   function endTractor() {
-    S.tractor = null; S.steer = 0;
+    S.tractor = null; S.joy = null;
     // every surviving Iveta goes back to the far end of the field
     for (const e of S.enemies) {
       if (e.dead) continue;
@@ -596,21 +596,25 @@
     const tr = S.tractor; if (!tr) return;
     const T2 = D.tractor;
     tr.t -= dt;
-    // steering is screen-relative: left side of the screen always turns towards screen-left
-    let steer = S.steer;
-    if (S.steerTap > 0) S.steerTap -= dt;
-    const dirSign = Math.cos(tr.h) >= 0 ? 1 : -1;
-    tr.h += steer * dirSign * T2.turnRate * dt;
-    tr.x += Math.sin(tr.h) * T2.speed * dt;
-    tr.d += Math.cos(tr.h) * T2.speed * dt;
-    tr.dist += T2.speed * dt;
-    // bounce off the edges of the field
-    // side limits: the field edge, or the edge of the screen when the tractor is close to the camera
+    // joystick: push up = drive away, down = drive back towards Viktor, left/right = sideways (screen directions)
+    let target = 0;
+    if (S.joy) {
+      const jx = S.joy.x - S.joy.bx, jy = S.joy.y - S.joy.by, mag = Math.min(1, Math.hypot(jx, jy) / T2.joyRadius);
+      if (mag > 0.15) {
+        target = T2.speed * mag;
+        const want = Math.atan2(jx, -jy);
+        let diff = want - tr.h; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // shortest way round
+        tr.h += Math.sign(diff) * Math.min(Math.abs(diff), T2.turnRate * dt);
+      }
+    }
+    tr.v += (target - tr.v) * Math.min(1, dt * 4);   // smooth acceleration / braking
+    tr.x += Math.sin(tr.h) * tr.v * dt;
+    tr.d += Math.cos(tr.h) * tr.v * dt;
+    tr.dist += tr.v * dt;
+    // keep it on the field and on screen (near the camera the visible strip is narrower)
     const mx = Math.min(T2.maxX, ((CX - 50) * tr.d) / F);
-    if (tr.x > mx) { tr.x = mx; if (Math.sin(tr.h) > 0) tr.h = -tr.h; }
-    if (tr.x < -mx) { tr.x = -mx; if (Math.sin(tr.h) < 0) tr.h = -tr.h; }
-    if (tr.d > T2.maxDepth) { tr.d = T2.maxDepth; tr.h = Math.PI - tr.h; }
-    if (tr.d < T2.minDepth) { tr.d = T2.minDepth; tr.h = Math.PI - tr.h; }
+    tr.x = Math.max(-mx, Math.min(mx, tr.x));
+    tr.d = Math.max(T2.minDepth, Math.min(T2.maxDepth, tr.d));
     // run over Ivetas
     for (const e of S.enemies) {
       if (e.dead || Math.hypot(enemyX(e) - tr.x, e.d - tr.d) > T2.hitRadius) continue;
@@ -620,7 +624,7 @@
     }
     // exhaust smoke
     if (Math.random() < dt * 12) {
-      const sx = screenX(tr.x, tr.d), gy = groundY(tr.d), sz = sizeAt(2.4, tr.d);
+      const sx = screenX(tr.x, tr.d), gy = groundY(tr.d), sz = sizeAt(D.tractor.size, tr.d);
       S.particles.push({ x: sx + sz * 0.22, y: gy - sz * 1.05, vx: (Math.random() - 0.5) * 30, vy: -50, t: 0.7, c: "#55555588", r: Math.max(3, sz * 0.05), dust: true });
     }
     updateTractorBtn();
@@ -630,7 +634,7 @@
   // tractor seen from behind (driving away) or from the front (driving towards the camera)
   function drawTractor() {
     const tr = S.tractor; if (!tr) return;
-    const g = ctx, sx = screenX(tr.x, tr.d), gy = groundY(tr.d), s = sizeAt(2.4, tr.d);
+    const g = ctx, sx = screenX(tr.x, tr.d), gy = groundY(tr.d), s = sizeAt(D.tractor.size, tr.d);
     const front = Math.cos(tr.h) < 0, lean = Math.sin(tr.h) * (front ? -0.25 : 0.25);
     g.fillStyle = "#0004"; g.beginPath(); g.ellipse(sx, gy, s * 0.6, s * 0.1, 0, 0, 7); g.fill();
     g.save(); g.translate(sx, gy); g.rotate(lean);
@@ -675,13 +679,21 @@
     g.restore();
   }
 
+  // virtual joystick: appears where you put your finger
   function drawSteerHints() {
-    const g = ctx, y = H - 70, a = S.steer;
-    g.save(); g.font = "800 44px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillStyle = a < 0 ? "#f7d417" : "#ffffff66"; g.fillText("◀", 50, y);
-    g.fillStyle = a > 0 ? "#f7d417" : "#ffffff66"; g.fillText("▶", W - 130, y);
-    g.font = "700 14px system-ui, sans-serif"; g.fillStyle = "#fffc"; g.fillText(D.text.tractorHint, CX, y + 40);
+    const g = ctx, R = D.tractor.joyRadius;
+    const j = S.joy || { bx: 90, by: H - 120, x: 90, y: H - 120 };
+    let kx = j.x - j.bx, ky = j.y - j.by; const l = Math.hypot(kx, ky);
+    if (l > R) { kx = (kx / l) * R; ky = (ky / l) * R; }
+    g.save(); g.globalAlpha = S.joy ? 0.9 : 0.45;
+    g.fillStyle = "#0005"; g.strokeStyle = "#fff"; g.lineWidth = 3;
+    g.beginPath(); g.arc(j.bx, j.by, R, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = S.joy ? "#f7d417" : "#fff"; g.beginPath(); g.arc(j.bx + kx, j.by + ky, R * 0.42, 0, 7); g.fill();
     g.restore();
+    if (!S.joy) {
+      g.save(); g.font = "700 15px system-ui, sans-serif"; g.textAlign = "center"; g.fillStyle = "#fff"; g.shadowColor = "#000"; g.shadowBlur = 4;
+      g.fillText(D.text.tractorHint, CX, H * 0.22); g.restore();
+    }
   }
 
   // ---------- Update ----------
@@ -728,10 +740,8 @@
       for (const e of S.enemies) {
         if (e.dead) continue;
         e.d -= e.speed * dt; e.phase += dt * (6 + e.speed);
-        if (S.tractor && e.d < D.tractor.minDepth) e.d = D.tractor.minDepth; // they wait where the tractor can reach them
         e.hitT = Math.max(0, e.hitT - dt);
         if (e.d <= D.spawn.reachDepth) {
-          if (S.tractor) { e.d = D.spawn.reachDepth + 0.05; continue; }
           die(); break;
         }
       }
@@ -1202,18 +1212,17 @@
   // ---------- Input ----------
   canvas.addEventListener("pointerdown", (ev) => {
     ev.preventDefault();
-    if (S.tractor) { S.steer = ev.clientX < CX ? -1 : 1; S.steerTap = 0.25; return; }
+    if (S.tractor) { S.joy = { bx: ev.clientX, by: ev.clientY, x: ev.clientX, y: ev.clientY }; canvas.setPointerCapture?.(ev.pointerId); return; }
     if (S.broomAiming) { S.broomAim = { x: ev.clientX, y: ev.clientY }; S.broomHold = true; canvas.setPointerCapture?.(ev.pointerId); }
     else { shoot(ev.clientX, ev.clientY); if (D.weapon.auto) S.hold = { x: ev.clientX, y: ev.clientY }; }
   });
   canvas.addEventListener("pointermove", (ev) => {
     if (S.hold) S.hold = { x: ev.clientX, y: ev.clientY };
-    if (S.tractor && S.steer) S.steer = ev.clientX < CX ? -1 : 1;
+    if (S.tractor && S.joy) { S.joy.x = ev.clientX; S.joy.y = ev.clientY; }
   });
-  ["pointerup", "pointercancel"].forEach((t) => canvas.addEventListener(t, () => { S.steer = 0; }));
+  ["pointerup", "pointercancel"].forEach((t) => canvas.addEventListener(t, () => { S.joy = null; }));
   $("tractorBtn").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); ev.preventDefault(); activateTractor(); });
-  window.addEventListener("keydown", (ev) => { if (ev.key === "t" || ev.key === "T") activateTractor(); if (S.tractor && ev.key === "ArrowLeft") S.steer = -1; if (S.tractor && ev.key === "ArrowRight") S.steer = 1; });
-  window.addEventListener("keyup", (ev) => { if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") S.steer = 0; });
+  window.addEventListener("keydown", (ev) => { if (ev.key === "t" || ev.key === "T") activateTractor(); });
   ["pointerup", "pointercancel", "pointerleave"].forEach((t) => canvas.addEventListener(t, () => { S.hold = null; }));
   // broom: touch and hold to aim, drag to adjust, release to sweep
   canvas.addEventListener("pointermove", (ev) => { if (S.broomAiming) S.broomAim = { x: ev.clientX, y: ev.clientY }; });

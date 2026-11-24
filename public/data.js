@@ -138,7 +138,7 @@ window.GAME_DATA = {
     cooldown: 15,             // seconds to charge
     duration: 6,              // seconds the price tags are active (new Ivetas spawn with one too)
     min: 10,                  // smallest price tag
-    max: 100                  // biggest price tag; a kill adds the tag to Petr's ammo
+    max: 50                   // biggest price tag; a kill adds the tag to Petr's ammo
   },
 
   // ---- Milena (white dog ally) ----

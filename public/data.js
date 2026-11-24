@@ -46,10 +46,11 @@ window.GAME_DATA = {
     {
       id: "petr",
       name: "Petr Burget",
-      tagline: "Money gun · Boss mode",
+      tagline: "Money gun · Boss mode · Dolla",
       broom: false,
       milena: false,
       nuke: true,             // has the Boss mode ability (see "nuke" below)
+      dolla: true,            // has the "Hundred dolla dolla" ability (see "dolla" below)
       powerHero: {            // look changes while Boss mode is active
         hat: "tophat"
       },
@@ -132,6 +133,14 @@ window.GAME_DATA = {
     spreadX: 7
   },
 
+  // ---- Petr's "Hundred dolla dolla" ----
+  dolla: {
+    cooldown: 15,             // seconds to charge
+    duration: 6,              // seconds the price tags are active (new Ivetas spawn with one too)
+    min: 10,                  // smallest price tag
+    max: 100                  // biggest price tag; a kill adds the tag to Petr's ammo
+  },
+
   // ---- Milena (white dog ally) ----
   milena: {
     name: "Milena",
@@ -207,6 +216,7 @@ window.GAME_DATA = {
     milenaAppears: "A wild Milena\nhas appeared!",
     milenaJoins: "Milena joined\nyour side!",
     powerOn: "Burget\nspecial spell!",
+    dollaOn: "Hundred\ndolla dolla!",
     tractorOn: "TRAKTOR TIME!",
     broomAim: "Hold & drag to aim – release to sweep!"
   }

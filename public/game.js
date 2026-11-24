@@ -119,6 +119,7 @@
     sweep: () => { noise(0.9, 900, 0.5); tone(200, 80, 0.6, 0.12, "triangle"); },
     whistle: () => tone(1800, 500, 0.7, 0.05, "sine"),
     boom: () => { noise(1.4, 300, 0.9); tone(90, 30, 1.0, 0.3, "sawtooth"); },
+    cash: () => { tone(1500, 1500, 0.06, 0.08, "square"); setTimeout(() => tone(2000, 2000, 0.12, 0.08, "square"), 70); },
     horn: () => { tone(330, 320, 0.35, 0.12, "square"); setTimeout(() => tone(262, 255, 0.45, 0.12, "square"), 380); },
     squash: () => { tone(220, 60, 0.18, 0.12, "triangle"); noise(0.12, 800, 0.2); },
     ready: () => { tone(600, 900, 0.12, 0.1, "triangle"); setTimeout(() => tone(900, 1300, 0.15, 0.1, "triangle"), 120); },
@@ -135,7 +136,7 @@
     spawnTimer: 0, spawnInterval: D.spawn.startInterval,
     aim: { x: 0, y: 0 }, recoil: 0, flash: 0,
     deathT: 0, shake: 0,
-    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0,
+    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, dolla: null,
       dog: null, milenaSpawned: false, banner: null
   };
 
@@ -146,13 +147,14 @@
       enemies: [], particles: [], tracers: [],
       spawnTimer: 0.5, spawnInterval: D.spawn.startInterval,
       recoil: 0, flash: 0, deathT: 0, shake: 0,
-      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0,
+      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, dolla: null,
       dog: null, milenaSpawned: false, banner: null
     });
     S.aim = { x: CX, y: HORIZON };
     $("hud").classList.remove("hidden"); $("broom").classList.toggle("hidden", !(CHAR.broom || CHAR.nuke)); S.hold = null;
     D.hero = CHAR.hero; document.querySelector("#broom .ico").textContent = CHAR.nuke ? "☢️" : "🧹";
-    $("tractorBtn").classList.toggle("hidden", !CHAR.tractor); updateTractorBtn();
+    $("tractorBtn").classList.toggle("hidden", !(CHAR.tractor || CHAR.dolla));
+    document.querySelector("#tractorBtn .ico").textContent = CHAR.dolla ? "💵" : "🚜"; updateTractorBtn();
     updateHud(); updateBroomBtn();
   }
 
@@ -167,7 +169,8 @@
         d: sp.spawnDepth + Math.random() * 6,
         speed: speed * (0.85 + Math.random() * 0.3),
         hp: en.hp * (D.weapon.shotsToKill || 1), phase: Math.random() * 6.28,
-        hitT: 0, dead: false, deadT: 0, fallDir: Math.random() < 0.5 ? -1 : 1
+        hitT: 0, dead: false, deadT: 0, fallDir: Math.random() < 0.5 ? -1 : 1,
+        bounty: S.dolla ? randBounty() : 0
       });
     }
   }
@@ -569,6 +572,47 @@
     }
   }
 
+  // ---------- Petr's "Hundred dolla dolla" ----------
+  // Every Iveta wears a price tag; killing one adds that number to Petr's ammo.
+  const secondCd = () => (CHAR.dolla ? D.dolla.cooldown : D.tractor.cooldown);
+  const randBounty = () => D.dolla.min + Math.floor(Math.random() * (D.dolla.max - D.dolla.min + 1));
+  function activateDolla() {
+    if (!CHAR.dolla || S.state !== "playing" || S.dolla || S.tractorCharge < D.dolla.cooldown) return;
+    S.tractorCharge = 0;
+    S.dolla = { t: D.dolla.duration };
+    for (const e of S.enemies) if (!e.dead) e.bounty = randBounty();
+    showBanner(D.text.dollaOn, 2); sfx.ready();
+    updateTractorBtn();
+  }
+  function updateDolla(dt) {
+    if (!S.dolla) return;
+    S.dolla.t -= dt;
+    if (S.dolla.t <= 0) {
+      S.dolla = null;
+      for (const e of S.enemies) if (!e.dead) e.bounty = 0; // price tags disappear
+    }
+    updateTractorBtn();
+  }
+  function payBounty(e) {
+    e.paid = true;
+    if (S.state !== "playing") return;
+    S.ammo += e.bounty;
+    if (S.reloading > 0) S.reloading = 0; // cash in hand cancels the reload
+    const b = enemyBox(e);
+    S.particles.push({ x: b.sx, y: b.fy - b.h - 6, vx: 0, vy: -70, t: 1.1, c: "#9be7a1", r: Math.max(16, Math.min(30, b.h * 0.18)), text: "+" + e.bounty });
+    sfx.cash(); updateHud();
+  }
+  function drawBounty(e) {
+    if (!e.bounty || e.dead) return;
+    const b = enemyBox(e), size = Math.max(11, Math.min(26, b.h * 0.16));
+    const g = ctx; g.save();
+    g.font = `900 ${size}px system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "bottom";
+    const txt = "$" + e.bounty, w = g.measureText(txt).width + size * 0.5, y = b.fy - b.h - 4;
+    g.fillStyle = "#1b4d23e6"; roundRect(g, b.sx - w / 2, y - size * 1.15, w, size * 1.2, size * 0.3); g.fill();
+    g.fillStyle = "#9be7a1"; g.fillText(txt, b.sx, y);
+    g.restore();
+  }
+
   // ---------- Viktor's tractor stampede ----------
   // Rows of tractors (each driven by a Viktor) cross the field from the left and the right and clear everything.
   function activateTractor() {
@@ -679,7 +723,7 @@
     S.tracers = S.tracers.filter((t) => (t.t -= dt) > 0);
     if (S.banner && (S.banner.t += dt) >= S.banner.dur) S.banner = null;
     S.particles = S.particles.filter((p) => {
-      p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (!p.dust && !p.ring && !p.bill) p.vy += 600 * dt; if (p.bill) p.rot += dt * 14; return p.t > 0;
+      p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (!p.dust && !p.ring && !p.bill && !p.text) p.vy += 600 * dt; if (p.bill) p.rot += dt * 14; return p.t > 0;
     });
 
     if (S.state === "playing") {
@@ -687,12 +731,13 @@
       S.score = Math.floor(S.time * D.score.perSecond + S.kills * D.score.perKill);
       S.cooldown = Math.max(0, S.cooldown - dt);
       if (S.hold && D.weapon.auto && S.cooldown <= 0 && S.reloading <= 0) shoot(S.hold.x, S.hold.y);
-      if (CHAR.tractor && !S.tractor && S.tractorCharge < D.tractor.cooldown) {
-        S.tractorCharge = Math.min(D.tractor.cooldown, S.tractorCharge + dt);
-        if (S.tractorCharge >= D.tractor.cooldown) sfx.ready();
+      if ((CHAR.tractor || CHAR.dolla) && !S.tractor && !S.dolla && S.tractorCharge < secondCd()) {
+        S.tractorCharge = Math.min(secondCd(), S.tractorCharge + dt);
+        if (S.tractorCharge >= secondCd()) sfx.ready();
         updateTractorBtn();
       }
       updateTractor(dt);
+      updateDolla(dt);
       if ((CHAR.broom || CHAR.nuke) && !S.sweep && !S.broomAiming && !S.power && S.broomCharge < abilityCd()) {
         S.broomCharge = Math.min(abilityCd(), S.broomCharge + dt);
         if (broomReady()) sfx.ready();
@@ -725,12 +770,16 @@
       S.deathT += dt;
       if (S.deathT >= D.hero.deathDuration) gameOver();
     }
-    for (const e of S.enemies) if (e.dead) e.deadT += dt;
+    for (const e of S.enemies) {
+      if (!e.dead) continue;
+      e.deadT += dt;
+      if (e.bounty && !e.paid) payBounty(e);
+    }
     S.enemies = S.enemies.filter((e) => !e.dead || e.deadT < D.enemy.deathDuration);
   }
 
   function die() {
-    S.broomAiming = false; S.sweep = null; endPower(); S.tractor = null; updateBroomBtn();
+    S.broomAiming = false; S.sweep = null; endPower(); S.tractor = null; S.dolla = null; updateBroomBtn();
     S.state = "dying"; S.deathT = 0; S.shake = 18; sfx.death();
     if (navigator.vibrate) navigator.vibrate([80, 60, 200]);
   }
@@ -1027,7 +1076,7 @@
     // enemies far → near
     const sorted = S.enemies.slice().sort((a, b) => b.d - a.d);
     // Ivetas and tractors, far to near
-    const items = sorted.map((e) => ({ d: e.d, f: () => drawIveta(e) }));
+    const items = sorted.map((e) => ({ d: e.d, f: () => { drawIveta(e); drawBounty(e); } }));
     if (S.tractor) for (const r of S.tractor.rows) items.push({ d: r.d, f: () => drawTractorRow(r) });
     items.sort((a, b) => b.d - a.d).forEach((it) => it.f());
     drawBroom();
@@ -1049,6 +1098,7 @@
         ctx.fillStyle = "#7bc67e"; ctx.fillRect(-w, -w * 0.5, w * 2, w); ctx.strokeStyle = "#2e7d32"; ctx.lineWidth = 1; ctx.strokeRect(-w, -w * 0.5, w * 2, w);
         ctx.fillStyle = "#2e7d32"; ctx.beginPath(); ctx.arc(0, 0, w * 0.28, 0, 7); ctx.fill(); ctx.restore();
       } else if (p.ring) { ctx.strokeStyle = p.c; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * (1.2 - p.t * 0.8), p.r * 0.5 * (1.2 - p.t * 0.8), 0, 0, 7); ctx.stroke(); }
+      else if (p.text) { ctx.font = `900 ${p.r}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.lineWidth = 4; ctx.strokeStyle = "#1b4d23"; ctx.strokeText(p.text, p.x, p.y); ctx.fillText(p.text, p.x, p.y); }
       else if (p.star) { drawStar(p.x, p.y, p.r * 1.6); }
       else { ctx.beginPath(); ctx.arc(p.x, p.y, p.dust ? p.r * (1.5 - p.t) * 2 : p.r, 0, 7); ctx.fill(); }
     }
@@ -1096,12 +1146,12 @@
 
   // ---------- HUD ----------
   function updateTractorBtn() {
-    const btn = $("tractorBtn"), cd = D.tractor.cooldown;
-    const k = S.tractor ? S.tractor.t / D.tractor.duration : Math.min(1, S.tractorCharge / cd);
+    const btn = $("tractorBtn"), cd = secondCd(), act = S.tractor || S.dolla;
+    const k = act ? act.t / (S.tractor ? D.tractor.duration : D.dolla.duration) : Math.min(1, S.tractorCharge / cd);
     btn.style.setProperty("--p", `${k * 360}deg`);
-    btn.classList.toggle("ready", !S.tractor && k >= 1);
-    btn.classList.toggle("aiming", !!S.tractor);
-    $("tractorTime").textContent = S.tractor ? Math.ceil(S.tractor.t) + "s" : k >= 1 ? "" : Math.ceil(cd - S.tractorCharge);
+    btn.classList.toggle("ready", !act && k >= 1);
+    btn.classList.toggle("aiming", !!act);
+    $("tractorTime").textContent = act ? Math.ceil(act.t) + "s" : k >= 1 ? "" : Math.ceil(cd - S.tractorCharge);
   }
   function updateBroomBtn() {
     const btn = $("broom"), cd = abilityCd();
@@ -1119,7 +1169,7 @@
     $("score").textContent = S.score;
     $("kills").textContent = `${T.kills} ${S.kills}`;
     $("ammoText").textContent = ammoTxt;
-    $("reloadBar").firstElementChild.style.width = S.reloading > 0 ? `${(1 - S.reloading / D.weapon.reloadTime) * 100}%` : `${(S.ammo / D.weapon.magazine) * 100}%`;
+    $("reloadBar").firstElementChild.style.width = S.reloading > 0 ? `${(1 - S.reloading / D.weapon.reloadTime) * 100}%` : `${Math.min(1, S.ammo / D.weapon.magazine) * 100}%`;
   }
 
   // ---------- Leaderboard / backend ----------
@@ -1190,8 +1240,9 @@
   canvas.addEventListener("pointermove", (ev) => {
     if (S.hold) S.hold = { x: ev.clientX, y: ev.clientY };
   });
-  $("tractorBtn").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); ev.preventDefault(); activateTractor(); });
-  window.addEventListener("keydown", (ev) => { if (ev.key === "t" || ev.key === "T") activateTractor(); });
+  const activateSecond = () => (CHAR.dolla ? activateDolla() : activateTractor());
+  $("tractorBtn").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); ev.preventDefault(); activateSecond(); });
+  window.addEventListener("keydown", (ev) => { if (ev.key === "t" || ev.key === "T") activateSecond(); });
   ["pointerup", "pointercancel", "pointerleave"].forEach((t) => canvas.addEventListener(t, () => { S.hold = null; }));
   // broom: touch and hold to aim, drag to adjust, release to sweep
   canvas.addEventListener("pointermove", (ev) => { if (S.broomAiming) S.broomAim = { x: ev.clientX, y: ev.clientY }; });

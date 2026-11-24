@@ -109,17 +109,16 @@ window.GAME_DATA = {
     aimSlowMo: 0.35           // game speed while you are aiming the broom
   },
 
-  // ---- Viktor's tractor ----
+  // ---- Viktor's tractor stampede ----
   tractor: {
     cooldown: 30,             // seconds to charge
-    duration: 10,             // seconds in the tractor
-    speed: 10,                // top speed, metres / second
-    turnRate: 5,              // how fast it turns towards the joystick direction
-    joyRadius: 60,            // joystick size in pixels
-    size: 1.9,                // how big the tractor is drawn (metres)
-    hitRadius: 1.6,           // metres: Ivetas this close get run over
-    startDepth: 5,
-    minDepth: 3.2, maxDepth: 34, maxX: 9  // field boundaries
+    duration: 6,              // seconds the stampede lasts; the whole field is clear at the end
+    crossTime: 2.0,           // seconds one tractor takes to cross the field
+    firstRow: 4.5,            // nearest row of tractors (metres in front of Viktor)
+    lastRow: 38,              // farthest row
+    rowSpacing: 3.5,          // metres between rows
+    size: 1.9,                // how big a tractor is (metres)
+    hitRadius: 1.2            // metres: Ivetas this close to a tractor get run over
   },
 
   // ---- Petr's Boss mode: infinite ammo + nukes ----
@@ -209,8 +208,6 @@ window.GAME_DATA = {
     milenaJoins: "Milena joined\nyour side!",
     powerOn: "Burget\nspecial spell!",
     tractorOn: "TRAKTOR TIME!",
-    tractorOff: "Ivetas retreat!",
-    tractorHint: "Touch & drag to drive – Ivetas can still get you!",
     broomAim: "Hold & drag to aim – release to sweep!"
   }
 };

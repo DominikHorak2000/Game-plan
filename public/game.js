@@ -135,7 +135,7 @@
     spawnTimer: 0, spawnInterval: D.spawn.startInterval,
     aim: { x: 0, y: 0 }, recoil: 0, flash: 0,
     deathT: 0, shake: 0,
-    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, joy: null,
+    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0,
       dog: null, milenaSpawned: false, banner: null
   };
 
@@ -146,7 +146,7 @@
       enemies: [], particles: [], tracers: [],
       spawnTimer: 0.5, spawnInterval: D.spawn.startInterval,
       recoil: 0, flash: 0, deathT: 0, shake: 0,
-      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, joy: null,
+      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0,
       dog: null, milenaSpawned: false, banner: null
     });
     S.aim = { x: CX, y: HORIZON };
@@ -278,7 +278,6 @@
   const broomReady = () => S.broomCharge >= abilityCd();
 
   function toggleBroomAim() {
-    if (S.tractor) return;
     if (S.state !== "playing" || S.sweep || S.power) return;
     if (!broomReady()) return;
     if (CHAR.nuke) { activatePower(); return; }
@@ -570,130 +569,106 @@
     }
   }
 
-  // ---------- Viktor's tractor ----------
+  // ---------- Viktor's tractor stampede ----------
+  // Rows of tractors (each driven by a Viktor) cross the field from the left and the right and clear everything.
   function activateTractor() {
     const T2 = D.tractor;
-    if (!CHAR.tractor || S.state !== "playing" || S.tractor || S.tractorCharge < T2.cooldown || S.broomAiming || S.sweep) return;
-    S.tractorCharge = 0; S.hold = null; S.joy = null;
-    S.tractor = { t: T2.duration, x: 0, d: T2.startDepth, h: 0, v: 0, dist: 0 };
+    if (!CHAR.tractor || S.state !== "playing" || S.tractor || S.tractorCharge < T2.cooldown) return;
+    S.tractorCharge = 0;
+    const rows = [];
+    let i = 0;
+    for (let d = T2.firstRow; d <= T2.lastRow; d += T2.rowSpacing, i++) {
+      rows.push({ d, dir0: i % 2 ? -1 : 1, dir: i % 2 ? -1 : 1, start: Math.random() * T2.crossTime * 0.6, x: null, prevX: null, pass: -1, dist: 0 });
+    }
+    S.tractor = { t: T2.duration, elapsed: 0, rows };
     showBanner(D.text.tractorOn, 1.8); sfx.horn();
     updateTractorBtn();
   }
   function endTractor() {
-    S.tractor = null; S.joy = null;
-    // every surviving Iveta goes back to the far end of the field
-    for (const e of S.enemies) {
-      if (e.dead) continue;
-      const b = enemyBox(e);
-      for (let i = 0; i < 4; i++) S.particles.push({ x: b.sx, y: b.fy - b.h * 0.5, vx: (Math.random() - 0.5) * 120, vy: -60, t: 0.5, c: "#ffffffaa", r: 6, dust: true });
-      e.d = D.spawn.spawnDepth + Math.random() * 6;
-      e.x0 = (Math.random() * 2 - 1) * D.spawn.spreadX;
-    }
-    showBanner(D.text.tractorOff, 1.6);
+    // whatever is still standing gets flattened at the end: the field is clear
+    for (const e of S.enemies) if (!e.dead) killBy(e, "#fff");
+    S.tractor = null;
+    S.spawnTimer = Math.max(S.spawnTimer, 1.0);
     updateTractorBtn();
   }
+  function killBy(e, c) {
+    e.dead = true; e.hp = 0; S.kills++;
+    const b = enemyBox(e);
+    for (let i = 0; i < 5; i++) S.particles.push({ x: b.sx, y: b.fy - b.h * 0.5, vx: (Math.random() - 0.5) * 240, vy: -Math.random() * 260, t: 0.8, c, r: 4, star: true });
+  }
+  const halfFieldAt = (d) => (CX + 120) * d / F; // world half-width that covers the screen at depth d
+
   function updateTractor(dt) {
     const tr = S.tractor; if (!tr) return;
     const T2 = D.tractor;
-    tr.t -= dt;
-    // joystick: push up = drive away, down = drive back towards Viktor, left/right = sideways (screen directions)
-    let target = 0;
-    if (S.joy) {
-      const jx = S.joy.x - S.joy.bx, jy = S.joy.y - S.joy.by, mag = Math.min(1, Math.hypot(jx, jy) / T2.joyRadius);
-      if (mag > 0.15) {
-        target = T2.speed * mag;
-        const want = Math.atan2(jx, -jy);
-        let diff = want - tr.h; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // shortest way round
-        tr.h += Math.sign(diff) * Math.min(Math.abs(diff), T2.turnRate * dt);
+    tr.t -= dt; tr.elapsed += dt;
+    let squashed = false;
+    for (const r of tr.rows) {
+      // each row keeps crossing back and forth until the stampede ends
+      const tt = (tr.elapsed - r.start) / T2.crossTime;
+      if (tt < 0) { r.x = null; continue; }
+      const pass = Math.floor(tt), k = tt - pass;
+      const hw = halfFieldAt(r.d);
+      if (pass !== r.pass) { r.pass = pass; r.dir = pass % 2 ? -r.dir0 : r.dir0; r.x = null; }
+      r.prevX = r.x == null ? -r.dir * hw : r.x;
+      r.x = -r.dir * hw + r.dir * 2 * hw * k;
+      r.dist += Math.abs(r.x - r.prevX);
+      const lo = Math.min(r.prevX, r.x) - T2.hitRadius, hi = Math.max(r.prevX, r.x) + T2.hitRadius;
+      for (const e of S.enemies) {
+        if (e.dead || Math.abs(e.d - r.d) > T2.rowSpacing * 0.6) continue;
+        const ex = enemyX(e);
+        if (ex >= lo && ex <= hi) { killBy(e, "#fff"); squashed = true; }
+      }
+      if (Math.random() < dt * 10) {
+        const s2 = sizeAt(T2.size, r.d);
+        S.particles.push({ x: screenX(r.x, r.d) - r.dir * s2 * 0.25, y: groundY(r.d) - s2 * 0.95, vx: -r.dir * 30, vy: -50, t: 0.6, c: "#55555588", r: Math.max(3, s2 * 0.05), dust: true });
       }
     }
-    tr.v += (target - tr.v) * Math.min(1, dt * 4);   // smooth acceleration / braking
-    tr.x += Math.sin(tr.h) * tr.v * dt;
-    tr.d += Math.cos(tr.h) * tr.v * dt;
-    tr.dist += tr.v * dt;
-    // keep it on the field and on screen (near the camera the visible strip is narrower)
-    const mx = Math.min(T2.maxX, ((CX - 50) * tr.d) / F);
-    tr.x = Math.max(-mx, Math.min(mx, tr.x));
-    tr.d = Math.max(T2.minDepth, Math.min(T2.maxDepth, tr.d));
-    // run over Ivetas
-    for (const e of S.enemies) {
-      if (e.dead || Math.hypot(enemyX(e) - tr.x, e.d - tr.d) > T2.hitRadius) continue;
-      e.dead = true; e.hp = 0; S.kills++; sfx.squash(); S.shake = Math.max(S.shake, 5);
-      const b = enemyBox(e);
-      for (let i = 0; i < 6; i++) S.particles.push({ x: b.sx, y: b.fy - b.h * 0.5, vx: (Math.random() - 0.5) * 240, vy: -Math.random() * 260, t: 0.8, c: "#fff", r: 4, star: true });
-    }
-    // exhaust smoke
-    if (Math.random() < dt * 12) {
-      const sx = screenX(tr.x, tr.d), gy = groundY(tr.d), sz = sizeAt(D.tractor.size, tr.d);
-      S.particles.push({ x: sx + sz * 0.22, y: gy - sz * 1.05, vx: (Math.random() - 0.5) * 30, vy: -50, t: 0.7, c: "#55555588", r: Math.max(3, sz * 0.05), dust: true });
-    }
+    if (squashed) { sfx.squash(); S.shake = Math.max(S.shake, 4); }
     updateTractorBtn();
     if (tr.t <= 0) endTractor();
   }
 
-  // tractor seen from behind (driving away) or from the front (driving towards the camera)
-  function drawTractor() {
-    const tr = S.tractor; if (!tr) return;
-    const g = ctx, sx = screenX(tr.x, tr.d), gy = groundY(tr.d), s = sizeAt(D.tractor.size, tr.d);
-    const front = Math.cos(tr.h) < 0, lean = Math.sin(tr.h) * (front ? -0.25 : 0.25);
-    g.fillStyle = "#0004"; g.beginPath(); g.ellipse(sx, gy, s * 0.6, s * 0.1, 0, 0, 7); g.fill();
-    g.save(); g.translate(sx, gy); g.rotate(lean);
-    const bob = Math.sin(tr.dist * 3) * s * 0.01;
-    // big wheels with moving treads
-    const wheel = (wx, r) => {
-      g.fillStyle = "#1a1a1a"; roundRect(g, wx - r * 0.45, -r * 2, r * 0.9, r * 2, r * 0.25); g.fill();
-      g.strokeStyle = "#444"; g.lineWidth = Math.max(1, r * 0.08);
-      const off = (tr.dist * 8) % (r * 0.4);
-      for (let y = -r * 2 + off; y < 0; y += r * 0.4) { g.beginPath(); g.moveTo(wx - r * 0.4, y); g.lineTo(wx + r * 0.4, y); g.stroke(); }
-      g.fillStyle = "#f7d417"; g.beginPath(); g.arc(wx, -r, r * 0.22, 0, 7); g.fill();
+  // a tractor seen from the side, driving left or right, Viktor at the wheel
+  function drawTractorRow(r) {
+    if (r.x == null) return;
+    const g = ctx, s = sizeAt(D.tractor.size, r.d), sx = screenX(r.x, r.d), gy = groundY(r.d);
+    g.fillStyle = "#0004"; g.beginPath(); g.ellipse(sx, gy, s * 0.6, s * 0.08, 0, 0, 7); g.fill();
+    g.save(); g.translate(sx, gy); g.scale(r.dir, 1);
+    const bob = Math.sin(r.dist * 4) * s * 0.012; g.translate(0, bob);
+    // body + bonnet
+    g.fillStyle = "#c62828"; roundRect(g, -s * 0.45, -s * 0.62, s * 0.55, s * 0.3, s * 0.04); g.fill();
+    roundRect(g, s * 0.05, -s * 0.52, s * 0.42, s * 0.22, s * 0.04); g.fill();
+    g.fillStyle = "#8e1b1b"; g.fillRect(s * 0.3, -s * 0.5, s * 0.03, s * 0.18); g.fillRect(s * 0.37, -s * 0.5, s * 0.03, s * 0.18);
+    // exhaust
+    g.fillStyle = "#333"; g.fillRect(s * 0.22, -s * 0.8, s * 0.04, s * 0.3);
+    // cabin frame + roof
+    g.strokeStyle = "#222"; g.lineWidth = Math.max(2, s * 0.025);
+    g.beginPath(); g.moveTo(-s * 0.42, -s * 0.62); g.lineTo(-s * 0.42, -s * 1.12); g.lineTo(-s * 0.02, -s * 1.12); g.lineTo(0, -s * 0.62); g.stroke();
+    g.fillStyle = "#c62828"; g.fillRect(-s * 0.47, -s * 1.17, s * 0.5, s * 0.06);
+    // Viktor at the wheel (striped shirt + photo face)
+    const hero = CHAR.hero;
+    g.save(); roundRect(g, -s * 0.33, -s * 0.84, s * 0.22, s * 0.22, s * 0.03); g.clip();
+    for (let i = 0; i < 5; i++) { g.fillStyle = hero.shirtStripes[i % 2]; g.fillRect(-s * 0.33, -s * 0.84 + i * s * 0.045, s * 0.22, s * 0.045); }
+    g.restore();
+    const hx = -s * 0.22, hy = -s * 0.94, hr = s * 0.1;
+    g.scale(r.dir, 1); // don't mirror the face
+    const img = heroImgs[CHAR.id], fx = hx * r.dir;
+    g.save(); g.beginPath(); g.ellipse(fx, hy, hr * 0.85, hr, 0, 0, 7); g.clip();
+    if (img.complete && img.naturalWidth) { const [a, b2, c, d2] = hero.faceCrop.map((v) => v * img.naturalWidth); g.drawImage(img, a, b2, c, d2, fx - hr * 0.85, hy - hr, hr * 1.7, hr * 2); }
+    else { g.fillStyle = hero.skin; g.fillRect(fx - hr, hy - hr, hr * 2, hr * 2); }
+    g.restore();
+    g.scale(r.dir, 1);
+    // wheels: big rear, small front, spinning spokes
+    const wheel = (wx, wr) => {
+      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(wx, -wr, wr, 0, 7); g.fill();
+      g.fillStyle = "#f7d417"; g.beginPath(); g.arc(wx, -wr, wr * 0.45, 0, 7); g.fill();
+      g.strokeStyle = "#1a1a1a"; g.lineWidth = Math.max(1, wr * 0.1);
+      const a0 = r.dist * 3 / Math.max(0.1, wr / s);
+      for (let k = 0; k < 4; k++) { const a = a0 + k * Math.PI / 2; g.beginPath(); g.moveTo(wx, -wr); g.lineTo(wx + Math.cos(a) * wr * 0.45, -wr + Math.sin(a) * wr * 0.45); g.stroke(); }
     };
-    wheel(-s * 0.42, s * 0.28); wheel(s * 0.42, s * 0.28);
-    g.translate(0, bob);
-    // body
-    g.fillStyle = "#c62828"; roundRect(g, -s * 0.3, -s * 0.62, s * 0.6, s * 0.42, s * 0.05); g.fill();
-    g.fillStyle = "#8e1b1b"; g.fillRect(-s * 0.3, -s * 0.28, s * 0.6, s * 0.06);
-    // exhaust pipe
-    g.fillStyle = "#333"; g.fillRect(s * 0.18, -s * 1.05, s * 0.05, s * 0.45);
-    // cabin frame
-    g.strokeStyle = "#222"; g.lineWidth = Math.max(2, s * 0.03);
-    g.beginPath(); g.moveTo(-s * 0.27, -s * 0.62); g.lineTo(-s * 0.27, -s * 1.25); g.lineTo(s * 0.27, -s * 1.25); g.lineTo(s * 0.27, -s * 0.62); g.stroke();
-    g.fillStyle = "#c62828"; g.fillRect(-s * 0.32, -s * 1.3, s * 0.64, s * 0.07);
-    // Viktor in the seat
-    const hero = CHAR.hero, hx = 0, hy = -s * 0.95, hr = s * 0.11;
-    g.save(); roundRect(g, -s * 0.17, -s * 0.84, s * 0.34, s * 0.24, s * 0.04); g.clip();
-    for (let i = 0; i < 5; i++) { g.fillStyle = hero.shirtStripes[i % 2]; g.fillRect(-s * 0.17, -s * 0.84 + i * s * 0.05, s * 0.34, s * 0.05); }
+    wheel(-s * 0.28, s * 0.3); wheel(s * 0.33, s * 0.17);
     g.restore();
-    if (front) {
-      const img = heroImgs[CHAR.id];
-      g.save(); g.beginPath(); g.ellipse(hx, hy, hr * 0.85, hr, 0, 0, 7); g.clip();
-      if (img.complete && img.naturalWidth) { const [a, b, c, d2] = hero.faceCrop.map((v) => v * img.naturalWidth); g.drawImage(img, a, b, c, d2, hx - hr * 0.85, hy - hr, hr * 1.7, hr * 2); }
-      g.restore();
-      // headlights + grille
-      g.fillStyle = "#fff6b0"; g.beginPath(); g.arc(-s * 0.18, -s * 0.48, s * 0.05, 0, 7); g.arc(s * 0.18, -s * 0.48, s * 0.05, 0, 7); g.fill();
-      g.fillStyle = "#555"; g.fillRect(-s * 0.1, -s * 0.55, s * 0.2, s * 0.18);
-    } else {
-      g.fillStyle = hero.skin; g.beginPath(); g.ellipse(hx, hy, hr * 0.85, hr, 0, 0, 7); g.fill();
-      g.fillStyle = hero.hair; g.beginPath(); g.ellipse(hx, hy - hr * 0.15, hr * 0.85, hr * 0.85, 0, 0, 7); g.fill();
-      g.fillStyle = "#222"; g.fillRect(-s * 0.06, -s * 0.36, s * 0.12, s * 0.05); // tow hitch
-    }
-    g.restore();
-  }
-
-  // virtual joystick: appears where you put your finger
-  function drawSteerHints() {
-    const g = ctx, R = D.tractor.joyRadius;
-    const j = S.joy || { bx: 90, by: H - 120, x: 90, y: H - 120 };
-    let kx = j.x - j.bx, ky = j.y - j.by; const l = Math.hypot(kx, ky);
-    if (l > R) { kx = (kx / l) * R; ky = (ky / l) * R; }
-    g.save(); g.globalAlpha = S.joy ? 0.9 : 0.45;
-    g.fillStyle = "#0005"; g.strokeStyle = "#fff"; g.lineWidth = 3;
-    g.beginPath(); g.arc(j.bx, j.by, R, 0, 7); g.fill(); g.stroke();
-    g.fillStyle = S.joy ? "#f7d417" : "#fff"; g.beginPath(); g.arc(j.bx + kx, j.by + ky, R * 0.42, 0, 7); g.fill();
-    g.restore();
-    if (!S.joy) {
-      g.save(); g.font = "700 15px system-ui, sans-serif"; g.textAlign = "center"; g.fillStyle = "#fff"; g.shadowColor = "#000"; g.shadowBlur = 4;
-      g.fillText(D.text.tractorHint, CX, H * 0.22); g.restore();
-    }
   }
 
   // ---------- Update ----------
@@ -711,14 +686,14 @@
       S.time += dt;
       S.score = Math.floor(S.time * D.score.perSecond + S.kills * D.score.perKill);
       S.cooldown = Math.max(0, S.cooldown - dt);
-      if (S.hold && D.weapon.auto && S.cooldown <= 0 && S.reloading <= 0 && !S.tractor) shoot(S.hold.x, S.hold.y);
+      if (S.hold && D.weapon.auto && S.cooldown <= 0 && S.reloading <= 0) shoot(S.hold.x, S.hold.y);
       if (CHAR.tractor && !S.tractor && S.tractorCharge < D.tractor.cooldown) {
         S.tractorCharge = Math.min(D.tractor.cooldown, S.tractorCharge + dt);
         if (S.tractorCharge >= D.tractor.cooldown) sfx.ready();
         updateTractorBtn();
       }
       updateTractor(dt);
-      if ((CHAR.broom || CHAR.nuke) && !S.tractor && !S.sweep && !S.broomAiming && !S.power && S.broomCharge < abilityCd()) {
+      if ((CHAR.broom || CHAR.nuke) && !S.sweep && !S.broomAiming && !S.power && S.broomCharge < abilityCd()) {
         S.broomCharge = Math.min(abilityCd(), S.broomCharge + dt);
         if (broomReady()) sfx.ready();
         updateBroomBtn();
@@ -731,7 +706,7 @@
         S.reloading -= dt;
         if (S.reloading <= 0) { S.reloading = 0; S.ammo = D.weapon.magazine; }
       }
-      S.spawnTimer -= dt;
+      if (!S.tractor) S.spawnTimer -= dt;
       if (S.spawnTimer <= 0) {
         spawnHorde();
         S.spawnInterval = Math.max(D.spawn.minInterval, S.spawnInterval * D.spawn.intervalDecay);
@@ -1051,12 +1026,10 @@
     drawBroomLane();
     // enemies far → near
     const sorted = S.enemies.slice().sort((a, b) => b.d - a.d);
-    let tractorDrawn = !S.tractor;
-    for (const e of sorted) {
-      if (!tractorDrawn && e.d < S.tractor.d) { drawTractor(); tractorDrawn = true; }
-      drawIveta(e);
-    }
-    if (!tractorDrawn) drawTractor();
+    // Ivetas and tractors, far to near
+    const items = sorted.map((e) => ({ d: e.d, f: () => drawIveta(e) }));
+    if (S.tractor) for (const r of S.tractor.rows) items.push({ d: r.d, f: () => drawTractorRow(r) });
+    items.sort((a, b) => b.d - a.d).forEach((it) => it.f());
     drawBroom();
     drawNukes();
     drawDog();
@@ -1081,11 +1054,10 @@
     }
     ctx.globalAlpha = 1;
 
-    if (!S.tractor) drawViktor();
-    else drawSteerHints();
+    drawViktor();
 
     // crosshair at last aim
-    if (S.state === "playing" && !S.broomAiming && !S.tractor) {
+    if (S.state === "playing" && !S.broomAiming) {
       ctx.strokeStyle = "#fffc"; ctx.lineWidth = 2;
       const { x, y } = S.aim, r = 12;
       ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
@@ -1212,15 +1184,12 @@
   // ---------- Input ----------
   canvas.addEventListener("pointerdown", (ev) => {
     ev.preventDefault();
-    if (S.tractor) { S.joy = { bx: ev.clientX, by: ev.clientY, x: ev.clientX, y: ev.clientY }; canvas.setPointerCapture?.(ev.pointerId); return; }
     if (S.broomAiming) { S.broomAim = { x: ev.clientX, y: ev.clientY }; S.broomHold = true; canvas.setPointerCapture?.(ev.pointerId); }
     else { shoot(ev.clientX, ev.clientY); if (D.weapon.auto) S.hold = { x: ev.clientX, y: ev.clientY }; }
   });
   canvas.addEventListener("pointermove", (ev) => {
     if (S.hold) S.hold = { x: ev.clientX, y: ev.clientY };
-    if (S.tractor && S.joy) { S.joy.x = ev.clientX; S.joy.y = ev.clientY; }
   });
-  ["pointerup", "pointercancel"].forEach((t) => canvas.addEventListener(t, () => { S.joy = null; }));
   $("tractorBtn").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); ev.preventDefault(); activateTractor(); });
   window.addEventListener("keydown", (ev) => { if (ev.key === "t" || ev.key === "T") activateTractor(); });
   ["pointerup", "pointercancel", "pointerleave"].forEach((t) => canvas.addEventListener(t, () => { S.hold = null; }));

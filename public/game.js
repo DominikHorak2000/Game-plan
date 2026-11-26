@@ -223,10 +223,12 @@
     S.cooldown = SG.cooldown;
     S.recoil = 1.6; S.flash = 1.4; S.shake = Math.max(S.shake, 10);
     sfx.shotgun();
+    S.blast = { kills: 0, max: SG.maxKills }; // one blast can only take down this many Ivetas
     for (let i = 0; i < SG.pellets; i++) {
       const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * SG.spread;
       fireAt(px + Math.cos(a) * r, py + Math.sin(a) * r * 0.7, i > 0);
     }
+    S.blast = null;
     if (!S.power && S.ammo < SG.ammoPerShot) S.shotgun = false;
     if (S.ammo === 0) startReload();
     updateHud();
@@ -260,6 +262,7 @@
       S.particles.push({ x: g.muzzle.x, y: g.muzzle.y, vx: (px - g.muzzle.x) / ft, vy: (py - g.muzzle.y) / ft, t: ft, c: "#7bc67e", r: 12, bill: true, rot: Math.random() * 6, life: ft });
     } else S.tracers.push({ x1: g.muzzle.x, y1: g.muzzle.y, x2: px, y2: py, t: 0.09 });
     const spark = money ? "#9be7a1" : "#ffe27a";
+    if (target && S.blast && S.blast.kills >= S.blast.max) target = null; // blast already used up its kills
     if (target) {
       // splash: everyone standing within splashRadius (world metres) of the target is hit too
       const R = D.weapon.splashRadius, tx = enemyX(target);
@@ -271,7 +274,7 @@
         v.hp--; v.hitT = 0.12;
         for (let i = 0; i < 8; i++) S.particles.push({ x: hx, y: hy, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.8) * 300, t: 0.4, c: spark, r: 3 });
         if (v.hp <= 0) {
-          v.dead = true; S.kills++;
+          v.dead = true; S.kills++; if (S.blast) S.blast.kills++;
           for (let i = 0; i < 6; i++) S.particles.push({ x: hx, y: hy, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 200, t: 0.8, c: "#fff", r: 4, star: true });
         }
       }

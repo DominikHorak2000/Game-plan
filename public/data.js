@@ -136,7 +136,7 @@ window.GAME_DATA = {
 
   // ---- Petr's "Hundred dolla dolla" ----
   dolla: {
-    cooldown: 15,             // seconds to charge
+    cooldown: 17,             // seconds to charge
     duration: 6,              // seconds the price tags are active (new Ivetas spawn with one too)
     min: 10,                  // smallest price tag
     max: 50                   // biggest price tag; a kill adds the tag to Petr's ammo
@@ -145,7 +145,8 @@ window.GAME_DATA = {
   // ---- Petr's money shotgun ----
   shotgun: {
     showAbove: 100,           // button appears when Petr has more ammo than this (or during Boss mode)
-    ammoPerShot: 40,          // ammo spent per blast
+    ammoPerShot: 50,          // ammo spent per blast
+    maxKills: 3,              // most Ivetas one blast can take down
     pellets: 20,              // banknotes fired per blast
     spread: 80,               // spread radius in pixels around where you tap
     cooldown: 0.45            // seconds between blasts

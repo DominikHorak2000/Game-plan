@@ -145,7 +145,7 @@ window.GAME_DATA = {
   // ---- Petr's money shotgun ----
   shotgun: {
     showAbove: 100,           // button appears when Petr has more ammo than this (or during Boss mode)
-    ammoPerShot: 20,          // ammo spent per blast
+    ammoPerShot: 40,          // ammo spent per blast
     pellets: 20,              // banknotes fired per blast
     spread: 80,               // spread radius in pixels around where you tap
     cooldown: 0.45            // seconds between blasts

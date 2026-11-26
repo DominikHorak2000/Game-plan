@@ -149,7 +149,7 @@ window.GAME_DATA = {
     maxKills: 3,              // most Ivetas one blast can take down
     pellets: 20,              // banknotes fired per blast
     spread: 80,               // spread radius in pixels around where you tap
-    cooldown: 0.45            // seconds between blasts
+    cooldown: 0.5             // seconds between blasts (hold the screen to keep blasting)
   },
 
   // ---- Milena (white dog ally) ----

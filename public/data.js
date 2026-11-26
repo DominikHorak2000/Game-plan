@@ -51,6 +51,7 @@ window.GAME_DATA = {
       milena: false,
       nuke: true,             // has the Boss mode ability (see "nuke" below)
       dolla: true,            // has the "Hundred dolla dolla" ability (see "dolla" below)
+      shotgun: true,          // shotgun button appears when ammo is above shotgun.showAbove
       powerHero: {            // look changes while Boss mode is active
         hat: "tophat"
       },
@@ -139,6 +140,15 @@ window.GAME_DATA = {
     duration: 6,              // seconds the price tags are active (new Ivetas spawn with one too)
     min: 10,                  // smallest price tag
     max: 50                   // biggest price tag; a kill adds the tag to Petr's ammo
+  },
+
+  // ---- Petr's money shotgun ----
+  shotgun: {
+    showAbove: 100,           // button appears when Petr has more ammo than this (or during Boss mode)
+    ammoPerShot: 20,          // ammo spent per blast
+    pellets: 20,              // banknotes fired per blast
+    spread: 80,               // spread radius in pixels around where you tap
+    cooldown: 0.45            // seconds between blasts
   },
 
   // ---- Milena (white dog ally) ----

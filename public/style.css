@@ -63,3 +63,10 @@ button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 #8f1a0f; }
 #tractorBtn.ready { border-color: #fff; animation: pulse 1s infinite; }
 #tractorBtn.ready .ico { filter: none; }
 #tractorBtn.aiming { background: #e8321e; animation: none; }
+
+#shotgunBtn { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 236px); width: 78px; height: 78px; border-radius: 50%;
+  padding: 0; background: #0009; border: 3px solid #fff6; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; }
+#shotgunBtn .ico { font-size: 28px; line-height: 1; }
+#shotgunBtn .lbl { font: 800 13px system-ui, sans-serif; color: #f7d417; }
+#shotgunBtn.ready { border-color: #9be7a1; animation: pulse 1s infinite; }
+#shotgunBtn.aiming { background: #1f7a3a; border-color: #f7d417; animation: none; }

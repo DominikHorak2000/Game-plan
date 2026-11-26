@@ -119,6 +119,7 @@
     sweep: () => { noise(0.9, 900, 0.5); tone(200, 80, 0.6, 0.12, "triangle"); },
     whistle: () => tone(1800, 500, 0.7, 0.05, "sine"),
     boom: () => { noise(1.4, 300, 0.9); tone(90, 30, 1.0, 0.3, "sawtooth"); },
+    shotgun: () => { noise(0.35, 1500, 0.8); tone(160, 60, 0.25, 0.15, "sawtooth"); tone(1600, 1000, 0.08, 0.05, "triangle"); },
     cash: () => { tone(1500, 1500, 0.06, 0.08, "square"); setTimeout(() => tone(2000, 2000, 0.12, 0.08, "square"), 70); },
     horn: () => { tone(330, 320, 0.35, 0.12, "square"); setTimeout(() => tone(262, 255, 0.45, 0.12, "square"), 380); },
     squash: () => { tone(220, 60, 0.18, 0.12, "triangle"); noise(0.12, 800, 0.2); },
@@ -136,7 +137,7 @@
     spawnTimer: 0, spawnInterval: D.spawn.startInterval,
     aim: { x: 0, y: 0 }, recoil: 0, flash: 0,
     deathT: 0, shake: 0,
-    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, dolla: null,
+    broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, dolla: null, shotgun: false,
       dog: null, milenaSpawned: false, banner: null
   };
 
@@ -147,7 +148,7 @@
       enemies: [], particles: [], tracers: [],
       spawnTimer: 0.5, spawnInterval: D.spawn.startInterval,
       recoil: 0, flash: 0, deathT: 0, shake: 0,
-      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, dolla: null,
+      broomCharge: 0, broomAiming: false, broomAim: null, broomHold: false, sweep: null, power: null, nukes: [], booms: [], nukeTimer: 0, whiteFlash: 0, tractor: null, tractorCharge: 0, dolla: null, shotgun: false,
       dog: null, milenaSpawned: false, banner: null
     });
     S.aim = { x: CX, y: HORIZON };
@@ -203,12 +204,36 @@
     if (S.state !== "playing") return;
     S.aim = { x: px, y: py };
     if (S.reloading > 0 || S.cooldown > 0) return;
+    if (S.shotgun) { fireShotgun(px, py); return; }
     if (S.ammo <= 0 && !S.power) { sfx.empty(); startReload(); return; }
     if (!S.power) S.ammo--;
     S.cooldown = D.weapon.fireCooldown;
     S.recoil = 1; S.flash = 1; S.shake = Math.max(S.shake, 4);
     sfx.shot();
+    fireAt(px, py, false);
+    if (S.ammo === 0) startReload();
+    updateHud();
+  }
 
+  // Petr's shotgun: one blast spends 20 ammo and sprays 20 banknotes around the tap point
+  function fireShotgun(px, py) {
+    const SG = D.shotgun;
+    if (!S.power && S.ammo < SG.ammoPerShot) { S.shotgun = false; updateHud(); return; }
+    if (!S.power) S.ammo -= SG.ammoPerShot;
+    S.cooldown = SG.cooldown;
+    S.recoil = 1.6; S.flash = 1.4; S.shake = Math.max(S.shake, 10);
+    sfx.shotgun();
+    for (let i = 0; i < SG.pellets; i++) {
+      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * SG.spread;
+      fireAt(px + Math.cos(a) * r, py + Math.sin(a) * r * 0.7, i > 0);
+    }
+    if (!S.power && S.ammo < SG.ammoPerShot) S.shotgun = false;
+    if (S.ammo === 0) startReload();
+    updateHud();
+  }
+
+  // one bullet / banknote landing at (px, py)
+  function fireAt(px, py, quiet) {
     const pad = D.weapon.hitPadding;
     // shooting the wild Milena makes her join Viktor
     if (S.dog && S.dog.state === "wild") {
@@ -216,7 +241,7 @@
       if (px >= b.x1 - pad && px <= b.x2 + pad && py >= b.y1 - pad * 2 && py <= b.y2 + pad) {
         const g0 = heroGeom();
         S.tracers.push({ x1: g0.muzzle.x, y1: g0.muzzle.y, x2: px, y2: py, t: 0.09 });
-        befriendDog(); if (S.ammo === 0) startReload(); updateHud(); return;
+        befriendDog(); return;
       }
     }
     // hitscan: nearest living enemy under the tap
@@ -239,7 +264,7 @@
       // splash: everyone standing within splashRadius (world metres) of the target is hit too
       const R = D.weapon.splashRadius, tx = enemyX(target);
       const victims = S.enemies.filter((e) => !e.dead && Math.hypot(enemyX(e) - tx, e.d - target.d) <= R);
-      sfx.hit();
+      if (!quiet) sfx.hit();
       if (R > 0) S.particles.push({ x: px, y: py, vx: 0, vy: 0, t: 0.25, c: "#ffe27a", r: sizeAt(R, target.d), ring: true });
       for (const v of victims) {
         const vb = enemyBox(v), hx = v === target ? px : vb.sx, hy = v === target ? py : vb.fy - vb.h * 0.6;
@@ -253,8 +278,6 @@
     } else {
       S.particles.push({ x: px, y: py, vx: 0, vy: -40, t: 0.35, c: "#c9b99a", r: 6, dust: true });
     }
-    if (S.ammo === 0) startReload();
-    updateHud();
   }
 
   function startReload() {
@@ -1161,8 +1184,18 @@
     btn.classList.toggle("aiming", S.broomAiming || !!S.power);
     $("broomTime").textContent = S.power ? Math.ceil(S.power.t) + "s" : k >= 1 ? "" : Math.ceil(cd - S.broomCharge);
   }
+  function updateShotgunBtn() {
+    const SG = D.shotgun, btn = $("shotgunBtn");
+    if (!CHAR.shotgun || S.state !== "playing") { btn.classList.add("hidden"); S.shotgun = false; return; }
+    if (S.shotgun && !S.power && S.ammo < SG.ammoPerShot) S.shotgun = false;
+    const avail = S.power || S.ammo > SG.showAbove || S.shotgun;
+    btn.classList.toggle("hidden", !avail);
+    btn.classList.toggle("aiming", S.shotgun);
+    btn.classList.toggle("ready", avail && !S.shotgun);
+  }
   let lastHud = "";
   function updateHud() {
+    updateShotgunBtn();
     const ammoTxt = S.power ? "∞" : S.reloading > 0 ? "⟳ " + S.reloading.toFixed(1) : `${S.ammo} / ${D.weapon.magazine}`;
     const key = S.score + "|" + S.kills + "|" + ammoTxt;
     if (key === lastHud) return; lastHud = key;
@@ -1216,7 +1249,7 @@
   // ---------- Screens ----------
   function gameOver() {
     S.state = "over";
-    $("hud").classList.add("hidden"); $("broom").classList.add("hidden"); $("tractorBtn").classList.add("hidden");
+    $("hud").classList.add("hidden"); $("broom").classList.add("hidden"); $("tractorBtn").classList.add("hidden"); $("shotgunBtn").classList.add("hidden");
     $("stats").innerHTML = `${T.yourScore}: <b>${S.score}</b><br>${T.kills}: ${S.kills} · ${T.time}: ${Math.floor(S.time)}s`;
     $("saveMsg").textContent = "";
     $("nameForm").classList.remove("hidden");
@@ -1239,6 +1272,11 @@
   });
   canvas.addEventListener("pointermove", (ev) => {
     if (S.hold) S.hold = { x: ev.clientX, y: ev.clientY };
+  });
+  $("shotgunBtn").addEventListener("pointerdown", (ev) => {
+    ev.stopPropagation(); ev.preventDefault();
+    if (S.state !== "playing") return;
+    S.shotgun = !S.shotgun; S.hold = null; updateHud();
   });
   const activateSecond = () => (CHAR.dolla ? activateDolla() : activateTractor());
   $("tractorBtn").addEventListener("pointerdown", (ev) => { ev.stopPropagation(); ev.preventDefault(); activateSecond(); });

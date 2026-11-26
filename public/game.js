@@ -526,7 +526,9 @@
     const N = D.nuke;
     S.broomCharge = 0;
     S.power = { t: N.duration };
-    S.reloading = 0; S.ammo = D.weapon.magazine;
+    // ammo is left untouched (shots are free during Boss mode), so he keeps what he had afterwards;
+    // only a reload that was in progress is finished off
+    if (S.reloading > 0) { S.reloading = 0; S.ammo = D.weapon.magazine; }
     D.hero = Object.assign({}, CHAR.hero, CHAR.powerHero || {});
     S.nukeTimer = 0.2;
     showBanner(D.text.powerOn, 2); sfx.ready();
